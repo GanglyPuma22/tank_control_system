@@ -3,3 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+//Ignore WiFi credentials file required for connecting to a network
+src/*/WiFiCredentials.h

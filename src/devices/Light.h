@@ -1,52 +1,45 @@
-// devices/Light.h
 #pragma once
+#include "../utils/TimeOfDay.h"
 #include "Device.h"
 #include <Arduino.h>
 
 class Light : public Device {
 public:
-  // onHour and offHour in 24-hour format (0-23)
-  Light(uint8_t pin, uint8_t onHour, uint8_t offHour)
-      : pin(pin), onHour(onHour), offHour(offHour), state(false) {}
+  Light(uint8_t pin, TimeOfDay onTime, TimeOfDay offTime)
+      : pin(pin), onTime(onTime), offTime(offTime), state(false) {}
 
   void begin() {
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
+    digitalWrite(pin, HIGH); // OFF initially
     state = false;
   }
 
   void update() override {
-    uint8_t currentHour =
-        getCurrentHour(); // You need to implement this (RTC or NTP)
-    if (onHour <= offHour) {
-      // Normal case, e.g., on at 7, off at 19
-      if (currentHour >= onHour && currentHour < offHour) {
-        if (!state)
-          turnOn();
-      } else {
-        if (state)
-          turnOff();
-      }
+    TimeOfDay now = TimeOfDay::now();
+    bool shouldBeOn;
+
+    if (onTime < offTime) {
+      // Normal case (same day)
+      shouldBeOn = (now >= onTime && now < offTime);
     } else {
-      // Overnight case, e.g., on at 20, off at 6
-      if (currentHour >= onHour || currentHour < offHour) {
-        if (!state)
-          turnOn();
-      } else {
-        if (state)
-          turnOff();
-      }
+      // Overnight case
+      shouldBeOn = (now >= onTime || now < offTime);
     }
+
+    if (shouldBeOn && !state)
+      turnOn();
+    if (!shouldBeOn && state)
+      turnOff();
   }
 
   void turnOn() override {
-    digitalWrite(pin, HIGH);
+    digitalWrite(pin, LOW);
     state = true;
     Serial.println("Light ON");
   }
 
   void turnOff() override {
-    digitalWrite(pin, LOW);
+    digitalWrite(pin, HIGH);
     state = false;
     Serial.println("Light OFF");
   }
@@ -55,13 +48,7 @@ public:
 
 private:
   uint8_t pin;
-  uint8_t onHour;
-  uint8_t offHour;
+  TimeOfDay onTime;
+  TimeOfDay offTime;
   bool state;
-
-  uint8_t getCurrentHour() {
-    // TODO: Implement this using RTC, NTP, or system time
-    // For testing, just return a fixed hour like 12
-    return 12;
-  }
 };

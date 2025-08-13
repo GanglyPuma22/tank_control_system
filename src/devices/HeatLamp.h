@@ -19,10 +19,8 @@ public:
     if ((temperatureF < heatLampOnTempF || temperatureF < heatLampOffTempF) &&
         !state) {
       turnOn();
-      Serial.println("Heat lamp ON");
     } else if (temperatureF >= heatLampOffTempF && state) {
       turnOff();
-      Serial.println("Heat lamp OFF");
     }
   }
 
@@ -34,11 +32,13 @@ public:
   void turnOn() override {
     digitalWrite(pin, LOW); // Turn on the relay
     state = true;
+    Serial.println("Heat lamp ON");
   }
 
   void turnOff() override {
     digitalWrite(pin, HIGH); // Turn off the relay
     state = false;
+    Serial.println("Heat lamp OFF");
   }
 
   bool isOn() const override { return state; }
