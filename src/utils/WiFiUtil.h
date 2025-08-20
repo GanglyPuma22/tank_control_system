@@ -1,5 +1,5 @@
 #pragma once
-#include "../config/WiFiCredentials.h" // Put WIFI_SSID and WIFI_PASSWORD here (git-ignored)
+#include "../config/Credentials.h" // Put WIFI_SSID and WIFI_PASSWORD here (git-ignored)
 #include <WiFi.h>
 #include <time.h>
 

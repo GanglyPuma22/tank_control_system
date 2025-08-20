@@ -1,50 +1,63 @@
 #pragma once
+#include "../devices/CameraDevice.h"
 #include <WebServer.h>
 #include <WiFi.h>
 
 namespace WebServerUtil {
 
-inline WebServer server(80); // Port 80 HTTP server
+inline WebServer server(80);
+inline CameraDevice *cameraDevice = nullptr;
+inline unsigned long snapshotIntervalMs = 1000; // default 1 second
+// -------------------- MJPEG --------------------
+const char *mjpegBoundary = "ESP32MJPEG";
+bool streaming = false;
 
-// Generic type for action handlers
-using Handler = std::function<void()>;
+inline void begin(CameraDevice *cam,
+                  unsigned long intervalMs = snapshotIntervalMs) {
+  cameraDevice = cam;
+  snapshotIntervalMs = intervalMs;
 
-// Store dynamic handlers for devices or other actions
-struct Route {
-  String path;
-  Handler handler;
-};
-
-inline std::vector<Route> routes;
-
-inline void addRoute(const String &path, Handler handler) {
-  routes.push_back({path, handler});
-  server.on(path.c_str(), [handler]() {
-    handler();
-    server.send(200, "text/plain", "OK");
-  });
-}
-// todo: Make html handling more generic
-inline void begin() {
-  // Default root page (can edit later)
+  // Serve root page with automatic snapshot refresh
   server.on("/", []() {
     String page = "<h1>ESP32 Tank Control</h1>";
+
+    // Example device controls (generic, can add more later)
     page += "<p><a href='/heatlamp/on'>Heat Lamp ON</a></p>";
     page += "<p><a href='/heatlamp/off'>Heat Lamp OFF</a></p>";
     page += "<p><a href='/light/on'>Light ON</a></p>";
     page += "<p><a href='/light/off'>Light OFF</a></p>";
+    // Add stream
+    page += "<h1>ESP32 MJPEG Stream</h1>";
+    page += "<img src='/stream'>";
+    // // Add snapshot image with auto-refresh
+    // page += "<h2>Camera Snapshot at interval: " + String(snapshotIntervalMs)
+    // +
+    //         " ms </h2>";
+    // page += "<img src='/snapshot' width='320' height='240'>";
+    // page += "<script>setInterval(()=>{"
+    //         "document.querySelector('img').src='/snapshot?ts='+Date.now();"
+    //         "}, " +
+    //         String(snapshotIntervalMs) + ");</script>";
+
     server.send(200, "text/html", page);
   });
 
-  // Status endpoint
-  server.on("/status", []() {
-    server.send(200, "application/json", "{\"status\":\"ok\"}");
-  });
+  // // Serve snapshot
+  // server.on("/snapshot", []() {
+  //   if (cameraDevice) {
+  //     cameraDevice->capture(server);
+  //   } else {
+  //     server.send(503, "text/plain", "No camera configured");
+  //   }
+  // });
 
-  // Register all dynamic routes
-  for (auto &r : routes) {
-    // Already handled in addRoute
-  }
+  server.on("/stream", []() {
+    if (cameraDevice) {
+      cameraDevice->stream(server, mjpegBoundary, streaming);
+    } else {
+      server.send(503, "text/plain", "No camera configured");
+    }
+  });
 
   server.begin();
   Serial.println("Web server started on port 80");

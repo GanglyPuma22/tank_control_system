@@ -1,17 +1,17 @@
-// devices/Device.h
 #pragma once
+#include <Arduino.h>
 
 class Device {
 public:
-  virtual ~Device() = default;
-
-  // Call this periodically to update the device state
-  virtual void update() = 0;
-
-  // Optionally, a way to manually turn on/off the device
+  Device(const String &name = "") : name(name) {}
+  virtual void begin() = 0;
+  virtual void update() = 0; // called in main loop
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
-
-  // Optional: get the device's current state
   virtual bool isOn() const = 0;
+
+  String getName() const { return name; }
+
+private:
+  String name;
 };

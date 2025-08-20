@@ -5,10 +5,11 @@
 
 class Light : public Device {
 public:
-  Light(uint8_t pin, TimeOfDay onTime, TimeOfDay offTime)
-      : pin(pin), onTime(onTime), offTime(offTime), state(false) {}
+  Light(const String &name, uint8_t pin, TimeOfDay onTime, TimeOfDay offTime)
+      : Device(name), pin(pin), onTime(onTime), offTime(offTime), state(false) {
+  }
 
-  void begin() {
+  void begin() override {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, HIGH); // OFF initially
     state = false;
@@ -16,15 +17,8 @@ public:
 
   void update() override {
     TimeOfDay now = TimeOfDay::now();
-    bool shouldBeOn;
-
-    if (onTime < offTime) {
-      // Normal case (same day)
-      shouldBeOn = (now >= onTime && now < offTime);
-    } else {
-      // Overnight case
-      shouldBeOn = (now >= onTime || now < offTime);
-    }
+    bool shouldBeOn = (onTime < offTime) ? (now >= onTime && now < offTime)
+                                         : (now >= onTime || now < offTime);
 
     if (shouldBeOn && !state)
       turnOn();

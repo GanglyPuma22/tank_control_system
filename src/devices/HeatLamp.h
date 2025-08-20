@@ -1,32 +1,28 @@
-// devices/HeatLamp.h
 #pragma once
 #include "Device.h"
 #include <Arduino.h>
 
 class HeatLamp : public Device {
 public:
-  HeatLamp(uint8_t pin, float onTempF, float offTempF)
-      : pin(pin), heatLampOnTempF(onTempF), heatLampOffTempF(offTempF),
-        state(false) {}
+  HeatLamp(const String &name, uint8_t pin, float onTempF, float offTempF)
+      : Device(name), pin(pin), heatLampOnTempF(onTempF),
+        heatLampOffTempF(offTempF), state(false) {}
 
-  void begin() {
+  void begin() override {
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, HIGH); // Start with heat lamp OFF
+    digitalWrite(pin, HIGH); // OFF initially
     state = false;
   }
 
-  void update(float temperatureF) {
-    if ((temperatureF < heatLampOnTempF || temperatureF < heatLampOffTempF) &&
-        !state) {
-      turnOn();
-    } else if (temperatureF >= heatLampOffTempF && state) {
-      turnOff();
-    }
+  void update() override {
+    // No-op, use update(temperatureF) for temp-based control
   }
 
-  // Override base Device methods for manual control
-  void update() override {
-    // No-op for now: update with temperature must be called separately
+  void update(float temperatureF) {
+    if ((temperatureF < heatLampOnTempF) && !state)
+      turnOn();
+    else if (temperatureF >= heatLampOffTempF && state)
+      turnOff();
   }
 
   void turnOn() override {
