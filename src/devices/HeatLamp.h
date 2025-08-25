@@ -4,7 +4,7 @@
 
 class HeatLamp : public Device {
 public:
-  HeatLamp(const String &name, uint8_t pin, float onTempF, float offTempF)
+  HeatLamp(const std::string &name, uint8_t pin, float onTempF, float offTempF)
       : Device(name), pin(pin), heatLampOnTempF(onTempF),
         heatLampOffTempF(offTempF), state(false) {}
 
@@ -38,6 +38,38 @@ public:
   }
 
   bool isOn() const override { return state; }
+
+  void setHeatLampTemp(float onTempF, float offTempF) {
+    heatLampOnTempF = onTempF;
+    heatLampOffTempF = offTempF;
+  }
+
+  void applyState(JsonVariantConst desired) override {
+    Serial.print("HeatLamp applyState called\n");
+    if (desired["on"].is<JsonVariantConst>()) {
+      bool shouldBeOn = desired["on"].as<bool>();
+      if (shouldBeOn) {
+        turnOn();
+      } else {
+        turnOff();
+      }
+    }
+
+    if (desired["heatLampOnTempF"].is<JsonVariantConst>()) {
+      float onTempF = desired["heatLampOnTempF"].as<float>();
+      float offTempF = desired["heatLampOffTempF"].as<float>();
+      setHeatLampTemp(onTempF, offTempF);
+      Serial.printf(
+          "Heat lamp target temps set to: onTemp: %.1f°F offTemp: %.1f°F\n",
+          onTempF, offTempF);
+    }
+  }
+
+  void reportState(JsonDocument &doc) override {
+    doc["state"] = state;
+    doc["heatLampOnTempF"] = heatLampOnTempF;
+    doc["heatLampOffTempF"] = heatLampOffTempF;
+  }
 
 private:
   uint8_t pin;

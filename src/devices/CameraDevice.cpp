@@ -6,10 +6,11 @@
 #include <Wire.h>
 
 // Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
-CameraDevice::CameraDevice(const uint8_t pins[6], Resolution res)
-    : csPin(pins[0]), sckPin(pins[1]), misoPin(pins[2]), mosiPin(pins[3]),
-      sdaPin(pins[4]), sclPin(pins[5]), state(false), resolution(res),
-      camera(OV2640, pins[0]), jpegBuffer(nullptr) {}
+CameraDevice::CameraDevice(const std::string &name, const uint8_t pins[6],
+                           Resolution res)
+    : Device(name), csPin(pins[0]), sckPin(pins[1]), misoPin(pins[2]),
+      mosiPin(pins[3]), sdaPin(pins[4]), sclPin(pins[5]), state(false),
+      resolution(res), camera(OV2640, pins[0]), jpegBuffer(nullptr) {}
 
 CameraDevice::~CameraDevice() {
   if (jpegBuffer) {
@@ -47,7 +48,7 @@ void CameraDevice::begin() {
   camera.clear_fifo_flag();
   setResolution(resolution);
 
-  Serial.println("Camera initialized OK");
+  Serial.println("📸 Camera initialized 📸");
   state = true;
 }
 
@@ -59,6 +60,15 @@ void CameraDevice::turnOn() { state = true; }
 void CameraDevice::turnOff() { state = false; }
 bool CameraDevice::isOn() const { return state; }
 
+void CameraDevice::applyState(JsonVariantConst desired) {
+  if (desired["on"].is<JsonVariantConst>()) {
+    turnOn();
+  } else if (desired["off"].is<JsonVariantConst>()) {
+    turnOff();
+  }
+}
+
+void CameraDevice::reportState(JsonDocument &doc) { doc["state"] = state; }
 void CameraDevice::capture(WebServer &server) {
   if (!state) {
     server.send(503, "text/plain", "Camera is off");

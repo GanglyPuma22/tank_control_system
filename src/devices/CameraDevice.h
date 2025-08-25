@@ -27,7 +27,8 @@ public:
   };
 
   // Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
-  CameraDevice(const uint8_t pins[6], Resolution res = Resolution::VGA);
+  CameraDevice(const std::string &name, const uint8_t pins[6],
+               Resolution res = Resolution::VGA);
   ~CameraDevice();
 
   void begin() override;
@@ -35,7 +36,8 @@ public:
   void turnOn() override;
   void turnOff() override;
   bool isOn() const override;
-
+  void reportState(JsonDocument &doc) override;
+  void applyState(JsonVariantConst desired) override;
   void capture(WebServer &server);
   void stream(WebServer &server, const char *mjpegBoundary, bool streaming);
   void setResolution(Resolution res);

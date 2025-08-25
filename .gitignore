@@ -9,3 +9,8 @@ src/*/Credentials.h
 
 //Ignore custom test files 
 tests/
+
+//Ignore firebase specific files
+firebase.json
+.firebaserc
+.firebase/

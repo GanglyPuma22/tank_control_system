@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Realtime Database Example</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+      apiKey: "AIzaSyDaXSoK-VMwnAj5X0e_FOG826ABBagVfLE",
+      authDomain: "yasha-tank-controller.firebaseapp.com",
+      databaseURL: "https://yasha-tank-controller-default-rtdb.firebaseio.com",
+      projectId: "yasha-tank-controller",
+      storageBucket: "yasha-tank-controller.firebasestorage.app",
+      messagingSenderId: "446410548277",
+      appId: "1:446410548277:web:3549ce197d78fc97e47d7c",
+      measurementId: "G-37830TEG5L"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const valueRef = ref(db, "time");
+    onValue(valueRef, (snapshot) => {
+      document.getElementById("time").textContent = snapshot.val() ?? "No data";
+    });
+
+
+    async function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        document.getElementById("authStatus").textContent = "✅ Logged in";
+        loadDevice("heatLamp");
+        //loadDevice("lights");
+
+      } catch (error) {
+        document.getElementById("authStatus").textContent = "❌ Login failed";
+
+        alert("Login failed: " + error.message);
+
+      }
+    }
+
+    // -----------------------
+    // Device UI logic
+    // -----------------------
+    function loadDevice(deviceId) {
+      const desiredRef = ref(db, "devices/" + deviceId + "/desired");
+      const reportedRef = ref(db, "devices/" + deviceId + "/reported");
+
+      // Listen for desired
+      onValue(desiredRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        document.getElementById("desiredState").textContent = JSON.stringify(data);
+      });
+
+      // Listen for reported
+      onValue(reportedRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        document.getElementById("reportedState").textContent = JSON.stringify(data);
+      });
+    }
+
+    // -----------------------
+    // Command (set desired)
+    // -----------------------
+    function sendCommand() {
+      const newDesired = {
+        on: document.getElementById("cmdOn").checked,
+      };
+      const deviceId = "heatLamp";
+      set(ref(db, "devices/" + deviceId + "/desired"), newDesired);
+    }
+    async function logout() {
+      await signOut(auth);
+      document.getElementById("authStatus").textContent = "🔒 Logged out";
+    }
+    window.login = login;
+    window.sendCommand = sendCommand;
+    window.logout = logout;
+  </script>
+</head>
+
+<body>
+
+  <h1>Tank Controller</h1>
+  <h2>Login</h2>
+  <input id="email" type="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+  <button onclick="logout()">Logout</button>
+  <p id="authStatus">🔒 Not logged in</p>
+
+  <h2>Device: Heat Lamp</h2>
+  <p><b>Desired State:</b> <span id="desiredState">{}</span></p>
+  <p><b>Reported State:</b> <span id="reportedState">{}</span></p>
+
+  <h3>Send Command</h3>
+  <label><input type="checkbox" id="cmdOn"> On</label><br>
+  <button onclick="sendCommand()">Update Desired</button>
+
+  <h2>Firebase Live Time</h1>
+    <p>Current value: <span id="time">Loading...</span></p>
+
+</body>
+
+</html>
