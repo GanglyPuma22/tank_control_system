@@ -1,14 +1,19 @@
+#include "devices/CameraDevice.h"
 #include "esp_log.h"
-#include "utils/WebServerUtil.h" // The server code
 #include "utils/firebase/FirebaseWrapper.h"
 #include <Adafruit_Sensor.h>
 #include <Arduino.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <WiFiClientSecure.h>
 #include <devices/HeatLamp.h>
 #include <devices/Light.h>
 #include <sensors/DHT11Sensor.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiUtil.h>
+
+// Async web server setup for serving camere snapshots / MJPEG stream
+AsyncWebServer server(80);
 
 // Firebase setup using FirebaseClient class wrapper
 FirebaseWrapper firebase_app(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
@@ -45,6 +50,7 @@ unsigned long intervalMs = 30000; // 1-second refresh
 
 void setup() {
   Serial.begin(115200);
+  // Enable for detailed debug output (for when the gremlins strike)
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
   Serial.println("Sensors and devices initializing...");
@@ -54,6 +60,26 @@ void setup() {
   camera.begin();
 
   WiFiUtil::connectAndSyncTime();
+
+  server.on("/test", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "Hello from ESP32-C3");
+  });
+
+  server.on("/stream", HTTP_GET, [](AsyncWebServerRequest *request) {
+    uint8_t *jpegBuffer = camera.capture_async();
+    size_t jpegBufferLen = camera.get_fifo_length();
+    Serial.printf("/stream jpegBuffer length: %u bytes\n", jpegBufferLen);
+
+    if (!jpegBuffer || jpegBufferLen == 0) {
+      request->send(500, "text/plain", "Camera capture failed");
+      return;
+    }
+
+    request->send(200, "image/jpeg", jpegBuffer, jpegBufferLen);
+  });
+
+  server.begin();
+
   // Start firebase app with a stream path to listen for commands
   firebase_app.begin("/devices");
 
@@ -65,9 +91,6 @@ void loop() {
   firebase_app.loop(); // Process Firebase app tasks
 
   unsigned long now = millis();
-
-  //  Handle web server requests as often as possible
-  // WebServerUtil::handleClient();
 
   // Run the rest of the period tasks every 1 second
   if (now % 1000 == 0) {
@@ -97,16 +120,8 @@ void loop() {
     }
     roomLight.update();
 
-    // firebase_app.getValue("/temperature");
-    // // Update Firebase
-    // firebase_app.setValue("/heatlamp/status", heatLamp.isOn() ? "ON" :
-    // "OFF"); firebase_app.setValue("/light/status", roomLight.isOn() ? "ON" :
-    // "OFF");
     firebase_app.setValue("/time", time_buffer);
-  }
 
-  // Publish device state every 2 seconds
-  if (now % 2000 == 0) {
-    firebase_app.publishReportedStates();
+    // firebase_app.publishReportedStates();
   }
 }

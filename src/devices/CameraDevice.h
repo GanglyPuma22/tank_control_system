@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 #include "Device.h"
-#include "memorysaver.h" // needed for OV2640
+#include "memorysaver.h" // needed for OV2640 //THIS NEEDS TO BE SET IN ARDUCAM LIBRARY
 #include <ArduCAM.h>
 
 // Undefine ArduCAM's swap macro to prevent conflicts with std::swap
@@ -39,6 +39,8 @@ public:
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
   void capture(WebServer &server);
+  uint8_t *capture_async();
+  size_t get_fifo_length();
   void stream(WebServer &server, const char *mjpegBoundary, bool streaming);
   void setResolution(Resolution res);
 

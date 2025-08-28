@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
-  <title>Firebase Realtime Database Example</title>
+  <title>Tank Dashboard MVP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyDaXSoK-VMwnAj5X0e_FOG826ABBagVfLE",
       authDomain: "yasha-tank-controller.firebaseapp.com",
@@ -25,91 +26,172 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    const valueRef = ref(db, "time");
-    onValue(valueRef, (snapshot) => {
-      document.getElementById("time").textContent = snapshot.val() ?? "No data";
-    });
-
-
+    // --------------------------
+    // Auth
+    // --------------------------
     async function login() {
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-
       try {
         await signInWithEmailAndPassword(auth, email, password);
-        document.getElementById("authStatus").textContent = "✅ Logged in";
-        loadDevice("heatLamp");
-        //loadDevice("lights");
-
-      } catch (error) {
+      } catch (err) {
         document.getElementById("authStatus").textContent = "❌ Login failed";
-
-        alert("Login failed: " + error.message);
-
+        alert(err.message);
       }
     }
+    async function logout() {
+      await signOut(auth);
+    }
 
-    // -----------------------
-    // Device UI logic
-    // -----------------------
+    // Update UI based on auth state
+    onAuthStateChanged(auth, user => {
+      const loginCard = document.getElementById("loginCard");
+      const dashboard = document.getElementById("dashboard");
+      const statusCorner = document.getElementById("statusCorner");
+
+      if (user) {
+        loginCard.classList.add("hidden");
+        dashboard.classList.remove("hidden");
+        statusCorner.textContent = `✅ Logged in as ${user.email}`;
+
+        // Load devices after login
+        loadDevice("heatLamp");
+        loadDevice("lights");
+        loadDevice("fan");
+      } else {
+        loginCard.classList.remove("hidden");
+        dashboard.classList.add("hidden");
+        statusCorner.textContent = "🔒 Logged out";
+      }
+    });
+
+    // --------------------------
+    // Device logic
+    // --------------------------
     function loadDevice(deviceId) {
       const desiredRef = ref(db, "devices/" + deviceId + "/desired");
       const reportedRef = ref(db, "devices/" + deviceId + "/reported");
 
-      // Listen for desired
-      onValue(desiredRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        document.getElementById("desiredState").textContent = JSON.stringify(data);
+      // Desired listener
+      onValue(desiredRef, snap => {
+        const data = snap.val() || {};
+        document.querySelector(`#${deviceId} .desired`).textContent = JSON.stringify(data);
       });
 
-      // Listen for reported
-      onValue(reportedRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        document.getElementById("reportedState").textContent = JSON.stringify(data);
+      // Reported listener
+      onValue(reportedRef, snap => {
+        const data = snap.val() || {};
+        document.querySelector(`#${deviceId} .reported`).textContent = JSON.stringify(data);
       });
     }
 
-    // -----------------------
-    // Command (set desired)
-    // -----------------------
-    function sendCommand() {
-      const newDesired = {
-        on: document.getElementById("cmdOn").checked,
-      };
-      const deviceId = "heatLamp";
+    function sendCommand(deviceId, newDesired) {
       set(ref(db, "devices/" + deviceId + "/desired"), newDesired);
     }
-    async function logout() {
-      await signOut(auth);
-      document.getElementById("authStatus").textContent = "🔒 Logged out";
-    }
+
+    // Expose to HTML
     window.login = login;
-    window.sendCommand = sendCommand;
     window.logout = logout;
+    window.sendCommand = sendCommand;
   </script>
 </head>
 
-<body>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6 relative">
+  <h1 class="text-3xl font-bold mb-4">🦎 Tank Dashboard</h1>
 
-  <h1>Tank Controller</h1>
-  <h2>Login</h2>
-  <input id="email" type="email" placeholder="Email"><br>
-  <input id="password" type="password" placeholder="Password"><br>
-  <button onclick="login()">Login</button>
-  <button onclick="logout()">Logout</button>
-  <p id="authStatus">🔒 Not logged in</p>
+  <!-- Status Corner -->
+  <div id="statusCorner" class="absolute top-4 right-4 text-sm text-gray-700">🔒 Logged out</div>
 
-  <h2>Device: Heat Lamp</h2>
-  <p><b>Desired State:</b> <span id="desiredState">{}</span></p>
-  <p><b>Reported State:</b> <span id="reportedState">{}</span></p>
+  <!-- Auth -->
+  <div id="loginCard" class="bg-white shadow p-4 rounded-lg w-full max-w-md mb-6">
+    <h2 class="text-xl font-semibold mb-2">Login</h2>
+    <input id="email" type="email" placeholder="Email" class="w-full border rounded p-2 mb-2" />
+    <input id="password" type="password" placeholder="Password" class="w-full border rounded p-2 mb-2" />
+    <div class="flex gap-2">
+      <button onclick="login()" class="bg-blue-500 text-white px-4 py-2 rounded">Login</button>
+      <button onclick="logout()" class="bg-gray-500 text-white px-4 py-2 rounded">Logout</button>
+    </div>
+    <p id="authStatus" class="mt-2 text-sm text-gray-600">🔒 Not logged in</p>
+  </div>
 
-  <h3>Send Command</h3>
-  <label><input type="checkbox" id="cmdOn"> On</label><br>
-  <button onclick="sendCommand()">Update Desired</button>
+  <!-- Dashboard -->
+  <div id="dashboard" class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-5xl hidden">
 
-  <h2>Firebase Live Time</h1>
-    <p>Current value: <span id="time">Loading...</span></p>
+    <!-- Heat Lamp -->
+    <div id="heatLamp" class="bg-white shadow p-4 rounded-lg">
+      <h3 class="text-lg font-bold mb-2">🔥 Heat Lamp</h3>
+      <p><b>Desired:</b> <span class="desired">{}</span></p>
+      <p><b>Reported:</b> <span class="reported">{}</span></p>
+      <label class="flex items-center mt-2">
+        <input type="checkbox" id="heatLampToggle" class="mr-2">
+        <span>On</span>
+      </label>
+      <button onclick="sendCommand('heatLamp', {on: document.getElementById('heatLampToggle').checked})"
+        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+    </div>
 
+    <!-- Lights -->
+    <div id="lights" class="bg-white shadow p-4 rounded-lg">
+      <h3 class="text-lg font-bold mb-2">💡 Lights</h3>
+      <p><b>Desired:</b> <span class="desired">{}</span></p>
+      <p><b>Reported:</b> <span class="reported">{}</span></p>
+      <label class="flex items-center mt-2">
+        <input type="checkbox" id="lightsToggle" class="mr-2">
+        <span>On</span>
+      </label>
+      <button onclick="sendCommand('lights', {on: document.getElementById('lightsToggle').checked})"
+        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+    </div>
+
+    <!-- Fan -->
+    <div id="fan" class="bg-white shadow p-4 rounded-lg">
+      <h3 class="text-lg font-bold mb-2">🌀 Fan</h3>
+      <p><b>Desired:</b> <span class="desired">{}</span></p>
+      <p><b>Reported:</b> <span class="reported">{}</span></p>
+      <label class="block mt-2">
+        Speed (%): <input type="number" id="fanSpeed" min="0" max="100" class="border rounded p-1 w-20 ml-2" />
+      </label>
+      <button onclick="sendCommand('fan', {speed: parseInt(document.getElementById('fanSpeed').value)})"
+        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+    </div>
+
+    <!-- Video Stream -->
+    <div id="videoCard" class="bg-white shadow p-4 rounded-lg col-span-1 md:col-span-3">
+      <h3 class="text-lg font-bold mb-2">📹 Tank Camera</h3>
+      <video id="tankStream" class="w-[640px] h-[320px] mx-auto rounded border" autoplay controls muted
+        playsinline></video>
+
+      <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+      <script>
+        const video = document.getElementById("tankStream");
+        const streamUrl = "https://mesh-reading-ivory-fiber.trycloudflare.com/stream.m3u8";
+
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, function (event, data) {
+            console.warn("HLS.js error:", data);
+            if (data.fatal) {
+              console.log("🔄 Reloading HLS stream...");
+              hls.startLoad();
+            }
+          });
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          // Safari native HLS support
+          video.src = streamUrl;
+          video.addEventListener("error", () => {
+            console.log("🔄 Reloading stream for Safari...");
+            video.load();
+          });
+        } else {
+          video.outerHTML = "<p>⚠️ Your browser does not support HLS streaming.</p>";
+        }
+      </script>
+    </div>
+
+
+  </div>
 </body>
 
 </html>

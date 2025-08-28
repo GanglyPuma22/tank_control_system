@@ -19,6 +19,7 @@ CameraDevice::~CameraDevice() {
   }
 }
 
+size_t CameraDevice::get_fifo_length() { return camera.read_fifo_length(); }
 void CameraDevice::begin() {
   Serial.println("Camera begin: setting pinMode");
   pinMode(csPin, OUTPUT);
@@ -69,6 +70,33 @@ void CameraDevice::applyState(JsonVariantConst desired) {
 }
 
 void CameraDevice::reportState(JsonDocument &doc) { doc["state"] = state; }
+
+uint8_t *CameraDevice::capture_async() {
+  camera.flush_fifo();
+  camera.clear_fifo_flag();
+  camera.start_capture();
+  while (!camera.get_bit(ARDUCHIP_TRIG, CAP_DONE_MASK))
+    delay(1);
+
+  size_t len = camera.read_fifo_length();
+  Serial.printf("Captured image of length: %u bytes\n", len);
+  if (len == 0) {
+    return nullptr;
+  }
+
+  constexpr size_t MAX_JPEG_BUFFER = 32768;
+  if (len > MAX_JPEG_BUFFER) {
+    return nullptr;
+  }
+
+  uint8_t *rxBuffer = new uint8_t[len];
+
+  camera.CS_LOW();
+  camera.set_fifo_burst();
+  SPI.transferBytes(jpegBuffer, rxBuffer, len);
+  camera.CS_HIGH();
+  return rxBuffer;
+}
 void CameraDevice::capture(WebServer &server) {
   if (!state) {
     server.send(503, "text/plain", "Camera is off");
@@ -118,6 +146,7 @@ void CameraDevice::capture(WebServer &server) {
 
 void CameraDevice::stream(WebServer &server, const char *mjpegBoundary,
                           bool streaming) {
+  Serial.println("Starting MJPEG stream");
   if (!state) {
     server.send(503, "text/plain", "Camera is off");
     return;

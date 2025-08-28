@@ -66,7 +66,7 @@ public:
   }
 
   void reportState(JsonDocument &doc) override {
-    doc["state"] = state;
+    doc["state"] = isOn();
     doc["heatLampOnTempF"] = heatLampOnTempF;
     doc["heatLampOffTempF"] = heatLampOffTempF;
   }
