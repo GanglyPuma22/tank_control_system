@@ -53,7 +53,8 @@ inline void begin(CameraDevice *cam,
 
   server.on("/stream", []() {
     if (cameraDevice) {
-      cameraDevice->stream(server, mjpegBoundary, streaming);
+      Serial.println("Starting MJPEG stream");
+      // cameraDevice->stream(server, mjpegBoundary, streaming);
     } else {
       server.send(503, "text/plain", "No camera configured");
     }

@@ -11,8 +11,8 @@
 #undef swap
 #endif
 
+#include <AsyncWebSocket.h>
 #include <SPI.h>
-#include <WebServer.h>
 #include <WiFi.h>
 #include <Wire.h>
 
@@ -28,8 +28,12 @@ public:
 
   // Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
   CameraDevice(const std::string &name, const uint8_t pins[6],
-               Resolution res = Resolution::VGA);
-  ~CameraDevice();
+               Resolution res = Resolution::VGA,
+               AsyncWebSocket *streamWebSocket = nullptr, int8_t fps = 5,
+               int8_t cameraTaskPriority = 16);
+
+  static constexpr size_t MAX_BUFFER_SIZE =
+      40 * 1024; // TODO Make this configurable
 
   void begin() override;
   void update() override;
@@ -38,17 +42,35 @@ public:
   bool isOn() const override;
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
-  void capture(WebServer &server);
-  uint8_t *capture_async();
-  size_t get_fifo_length();
-  void stream(WebServer &server, const char *mjpegBoundary, bool streaming);
+  void capture();
+  void capture_async();
+  // void stream(WebServer &server, const char *mjpegBoundary, bool streaming);
   void setResolution(Resolution res);
+  uint8_t *getJpegBuffer() { return jpegBuffer; }
+  size_t getJpegBufferLen() { return jpegBufferLen; }
+  bool isCapturing() const { return capturing; }
+  bool isFrameReady() const { return frameReady; }
+  void setFrameReady(bool ready) { frameReady = ready; }
+  bool isImageCorrupted() const { return imageCorrupted; }
+  void handleCaptureTaskAsync(void *params);
+  void startStreamTaskAsync();
+  void handleStreamTaskAsync(void *params);
 
 private:
-  uint8_t csPin, sckPin, misoPin, mosiPin, sdaPin, sclPin;
-  bool state;
+  AsyncWebSocket *streamWebSocket;
+  int8_t fps;
+  int8_t cameraTaskPriority;
+  const uint8_t csPin, sckPin, misoPin, mosiPin, sdaPin, sclPin;
+  bool camera_initialized;
   Resolution resolution;
   ArduCAM camera;
-
-  uint8_t *jpegBuffer; // fixed heap buffer
+  volatile bool capturing = false;
+  volatile bool frameReady = false;
+  volatile bool imageCorrupted = false;
+  uint8_t jpegBuffer[MAX_BUFFER_SIZE];
+  volatile size_t jpegBufferLen = 0;
+  TaskHandle_t handleCaptureTask;
+  TaskHandle_t handleStreamTask;
+  TickType_t xLastWakeTime;
+  const TickType_t xPeriod = pdMS_TO_TICKS(1000 / fps);
 };

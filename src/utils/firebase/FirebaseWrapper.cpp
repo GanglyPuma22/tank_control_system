@@ -168,7 +168,7 @@ void FirebaseWrapper::onSetResultStatic(AsyncResult &result) {
                     result.error().message().c_str(), result.error().code());
   }
   if (result.available()) {
-    Firebase.printf("[Firebase Data] %s\n", result.c_str());
+    // Firebase.printf("[Firebase Data] %s\n", result.c_str());
   }
 }
 

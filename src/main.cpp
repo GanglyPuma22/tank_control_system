@@ -14,10 +14,15 @@
 
 // Async web server setup for serving camere snapshots / MJPEG stream
 AsyncWebServer server(80);
+// create an easy-to-use handler
+static AsyncWebSocketMessageHandler wsHandler;
+// add it to the websocket server
+static AsyncWebSocket streamWebSocket("/stream", wsHandler.eventHandler());
+TaskHandle_t handleCaptureTask;
 
 // Firebase setup using FirebaseClient class wrapper
-FirebaseWrapper firebase_app(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
-                             FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
+FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
+                            FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
 
 //**************
 // This implentation uses the M5Stamp C3 board with the Arduino framework.
@@ -26,6 +31,7 @@ FirebaseWrapper firebase_app(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // accordingly.
 //***** */
 #define DHTTYPE DHT11
+constexpr size_t MAXIMUM_NUMBER_OF_CLIENTS = 1; // Max number of WS clients
 
 // Pin definitions
 constexpr uint8_t DHT_PIN = 18;
@@ -45,8 +51,10 @@ Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
 
 // Camera definition
 uint8_t camPins[6] = {5, 4, 7, 6, 8, 9}; // CS, SCK, MISO, MOSI, SDA, SCL
-CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA);
-unsigned long intervalMs = 30000; // 1-second refresh
+CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
+                    &streamWebSocket, 10, 16);
+constexpr int framesPerSecond = 6;                 // Desired FPS
+constexpr int intervalMs = 1000 / framesPerSecond; // Interval in ms per frame
 
 void setup() {
   Serial.begin(115200);
@@ -61,36 +69,60 @@ void setup() {
 
   WiFiUtil::connectAndSyncTime();
 
-  server.on("/test", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Hello from ESP32-C3");
   });
 
-  server.on("/stream", HTTP_GET, [](AsyncWebServerRequest *request) {
-    uint8_t *jpegBuffer = camera.capture_async();
-    size_t jpegBufferLen = camera.get_fifo_length();
-    Serial.printf("/stream jpegBuffer length: %u bytes\n", jpegBufferLen);
-
-    if (!jpegBuffer || jpegBufferLen == 0) {
-      request->send(500, "text/plain", "Camera capture failed");
-      return;
-    }
-
-    request->send(200, "image/jpeg", jpegBuffer, jpegBufferLen);
+  wsHandler.onConnect([](AsyncWebSocket *server, AsyncWebSocketClient *client) {
+    Serial.printf("Client %" PRIu32 " connected\n", client->id());
+    server->textAll("New client: " + String(client->id()));
+    camera.startStreamTaskAsync();
   });
+
+  wsHandler.onDisconnect([](AsyncWebSocket *server, uint32_t clientId) {
+    Serial.printf("Client %" PRIu32 " disconnected\n", clientId);
+    server->textAll("Client " + String(clientId) + " disconnected");
+  });
+  wsHandler.onError([](AsyncWebSocket *server, AsyncWebSocketClient *client,
+                       uint16_t errorCode, const char *reason, size_t len) {
+    Serial.printf("Client %" PRIu32 " error: %" PRIu16 ": %s\n", client->id(),
+                  errorCode, reason);
+  });
+
+  wsHandler.onMessage([](AsyncWebSocket *server, AsyncWebSocketClient *client,
+                         const uint8_t *data, size_t len) {
+    Serial.printf("Client %" PRIu32 " data: %s\n", client->id(),
+                  (const char *)data);
+  });
+
+  // allow only one connection at a time
+  server.addHandler(&streamWebSocket)
+      .addMiddleware([](AsyncWebServerRequest *request, ArMiddlewareNext next) {
+        if (streamWebSocket.count() >
+            MAXIMUM_NUMBER_OF_CLIENTS - 1) { //-1 because streamWebSocket.counts
+                                             // works like array indexing
+          request->send(503, "text/plain", "Server is busy");
+        } else {
+          // process next middleware and at the end the handler
+          next();
+        }
+      });
+
+  server.addHandler(&streamWebSocket);
 
   server.begin();
 
   // Start firebase app with a stream path to listen for commands
-  firebase_app.begin("/devices");
+  // firebaseApp.begin("/devices");
 
   delay(1000); // Allow time for devices to initialize
   Serial.println("Initialization complete.!");
 }
 
 void loop() {
-  firebase_app.loop(); // Process Firebase app tasks
-
   unsigned long now = millis();
+
+  firebaseApp.loop(); // Process Firebase app tasks
 
   // Run the rest of the period tasks every 1 second
   if (now % 1000 == 0) {
@@ -113,15 +145,17 @@ void loop() {
       Serial.printf("Temp: %.2f°C, humidityidity: %.2f%%\n", temperatureF,
                     humidity);
       heatLamp.update(temperatureF);
-      firebase_app.setValue("/temperature", temperatureF);
-      firebase_app.setValue("/humidity", humidity);
+      firebaseApp.setValue("/temperature", temperatureF);
+      firebaseApp.setValue("/humidity", humidity);
     } else {
       Serial.println("Failed to read sensor");
     }
     roomLight.update();
 
-    firebase_app.setValue("/time", time_buffer);
+    firebaseApp.setValue("/time", time_buffer);
 
-    // firebase_app.publishReportedStates();
+    // firebaseApp.publishReportedStates();
+
+    streamWebSocket.cleanupClients();
   }
 }
