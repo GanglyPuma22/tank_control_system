@@ -49,12 +49,22 @@ HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_TEMP_F,
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
-// Camera definition
+// IMPORTANT FINDS
+// With TCP binarySendAll using entire buffer I cant get better than 5 fps seems
+// With TCP chunking there are some issues getting the queue to not fill
+// TRY GETTING UDP METRICS NEXT -> How fast can we take images
+// Try camera metrics too, how fast can i take images for realzies
+// With UDP I can also only squeeze out 5fps, this might be the camera
+// limitation at the moment. But now its stable and can stream low latency
+// TODO Try to see if we get a few more fps by using a seperate queue to send
+// images vs take to maximize camera throughput. Camera definition Desired rate
+// of image frames sending to websocket
+constexpr int8_t framesPerSecond = 5;
+// Task priority for camera capture task
+constexpr int8_t cameraTaskPriority = 8;
 uint8_t camPins[6] = {5, 4, 7, 6, 8, 9}; // CS, SCK, MISO, MOSI, SDA, SCL
 CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
-                    &streamWebSocket, 10, 16);
-constexpr int framesPerSecond = 6;                 // Desired FPS
-constexpr int intervalMs = 1000 / framesPerSecond; // Interval in ms per frame
+                    &streamWebSocket, framesPerSecond, cameraTaskPriority);
 
 void setup() {
   Serial.begin(115200);
@@ -69,6 +79,7 @@ void setup() {
 
   WiFiUtil::connectAndSyncTime();
 
+  // TODO Move setup of AsyncWebServer to helper class
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Hello from ESP32-C3");
   });
@@ -76,6 +87,8 @@ void setup() {
   wsHandler.onConnect([](AsyncWebSocket *server, AsyncWebSocketClient *client) {
     Serial.printf("Client %" PRIu32 " connected\n", client->id());
     server->textAll("New client: " + String(client->id()));
+    // Start streaming camera data to configured IP and Port in Credentials.h
+    // Stream as soon as the one-at-a-time allowed client connects
     camera.startStreamTaskAsync();
   });
 
@@ -109,11 +122,10 @@ void setup() {
       });
 
   server.addHandler(&streamWebSocket);
-
   server.begin();
 
   // Start firebase app with a stream path to listen for commands
-  // firebaseApp.begin("/devices");
+  firebaseApp.begin("/devices");
 
   delay(1000); // Allow time for devices to initialize
   Serial.println("Initialization complete.!");
@@ -134,16 +146,14 @@ void loop() {
     if (WiFiUtil::getLocalTimeWithDST(time_info)) {
       strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S",
                &time_info);
-      Serial.print("Local time: ");
-      Serial.println(time_buffer);
     }
+    firebaseApp.setValue("/time", time_buffer);
 
-    // float temperatureF, humidity;
     auto reading = dht11Sensor.readData();
     if (reading) {
       auto [temperatureF, humidity] = *reading;
-      Serial.printf("Temp: %.2f°C, humidityidity: %.2f%%\n", temperatureF,
-                    humidity);
+      // Serial.printf("Temp: %.2f°C, humidityidity: %.2f%%\n", temperatureF,
+      //               humidity);
       heatLamp.update(temperatureF);
       firebaseApp.setValue("/temperature", temperatureF);
       firebaseApp.setValue("/humidity", humidity);
@@ -152,9 +162,7 @@ void loop() {
     }
     roomLight.update();
 
-    firebaseApp.setValue("/time", time_buffer);
-
-    // firebaseApp.publishReportedStates();
+    firebaseApp.publishReportedStates();
 
     streamWebSocket.cleanupClients();
   }

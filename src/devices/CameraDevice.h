@@ -11,10 +11,13 @@
 #undef swap
 #endif
 
+#include "../config/Credentials.h"
 #include <AsyncWebSocket.h>
 #include <SPI.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <Wire.h>
+#include <algorithm>
 
 class CameraDevice : public Device {
 public:
@@ -30,10 +33,12 @@ public:
   CameraDevice(const std::string &name, const uint8_t pins[6],
                Resolution res = Resolution::VGA,
                AsyncWebSocket *streamWebSocket = nullptr, int8_t fps = 5,
-               int8_t cameraTaskPriority = 16);
+               int8_t cameraTaskPriority = 8); // UDP priority 18
 
   static constexpr size_t MAX_BUFFER_SIZE =
       40 * 1024; // TODO Make this configurable
+
+  WiFiUDP udp;
 
   void begin() override;
   void update() override;
@@ -42,9 +47,6 @@ public:
   bool isOn() const override;
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
-  void capture();
-  void capture_async();
-  // void stream(WebServer &server, const char *mjpegBoundary, bool streaming);
   void setResolution(Resolution res);
   uint8_t *getJpegBuffer() { return jpegBuffer; }
   size_t getJpegBufferLen() { return jpegBufferLen; }
@@ -52,7 +54,6 @@ public:
   bool isFrameReady() const { return frameReady; }
   void setFrameReady(bool ready) { frameReady = ready; }
   bool isImageCorrupted() const { return imageCorrupted; }
-  void handleCaptureTaskAsync(void *params);
   void startStreamTaskAsync();
   void handleStreamTaskAsync(void *params);
 
@@ -69,8 +70,7 @@ private:
   volatile bool imageCorrupted = false;
   uint8_t jpegBuffer[MAX_BUFFER_SIZE];
   volatile size_t jpegBufferLen = 0;
-  TaskHandle_t handleCaptureTask;
   TaskHandle_t handleStreamTask;
   TickType_t xLastWakeTime;
-  const TickType_t xPeriod = pdMS_TO_TICKS(1000 / fps);
+  TickType_t xPeriod;
 };
