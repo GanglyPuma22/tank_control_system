@@ -12,8 +12,10 @@ The Tank Control System is a versatile, extensible platform designed to manage a
 - **🧩 Extensible Device Management:** Easily add or modify devices and sensors for different species or use cases.
 
 ## 🚀 Planned Features
-- **🌦️ Weather Data Integration:** Match tank conditions to the native environment of the animal by pulling real-time weather data from their natural habitat.
+- **🌦️ Weather Data Integration:** Match tank conditions to the native environment of the animal by pulling real-time weather data from their natural habitat. This includes temperature/humidity control and simulated sunrise/sunset and light levels throughout the day.
 - **🤖 AI Computer Vision:** Integrate AI-based image analysis to detect key events (e.g., animal activity, feeding, abnormal behavior) and send notifications or alerts.
+- **💡 Light Sequencing & Intensity Control:** Create a custom order and timing in which lights should turn on/off, and set intensities of the included LED strip for different times of day.
+- **🔥 Mountable IR Heat Sensor & Multi Sensor Control:** Many existing temperature sensors fail to accurately capture the surface temperature of the basking spot. A mountable IR sensor solves that issue - it just needs line of sight to the surface. Additionally, multi sensor control support lets users maintain hot and cold side temperatures.
 
 ## 🛠️ Example Use Cases
 - 🦎 Lizard/reptile enclosures with precise day/night and temperature cycles

@@ -7,13 +7,12 @@ class Light : public Device {
 public:
   Light(const std::string &name, uint8_t pin, TimeOfDay onTime,
         TimeOfDay offTime)
-      : Device(name), pin(pin), onTime(onTime), offTime(offTime), state(false) {
-  }
+      : Device(name), pin(pin), onTime(onTime), offTime(offTime) {}
 
   void begin() override {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, HIGH); // OFF initially
-    state = false;
+    this->setState(true);
   }
 
   void update() override {
@@ -21,25 +20,23 @@ public:
     bool shouldBeOn = (onTime < offTime) ? (now >= onTime && now < offTime)
                                          : (now >= onTime || now < offTime);
 
-    if (shouldBeOn && !state)
+    if (shouldBeOn && !this->isOn())
       turnOn();
-    if (!shouldBeOn && state)
+    if (!shouldBeOn && this->isOn())
       turnOff();
   }
 
   void turnOn() override {
     digitalWrite(pin, LOW);
-    state = true;
+    this->setState(true);
     Serial.println("Light ON");
   }
 
   void turnOff() override {
     digitalWrite(pin, HIGH);
-    state = false;
+    this->setState(false);
     Serial.println("Light OFF");
   }
-
-  bool isOn() const override { return state; }
 
   void applyState(JsonVariantConst desired) override {
 
@@ -62,7 +59,7 @@ public:
   }
 
   void reportState(JsonDocument &doc) override {
-    doc["state"] = state;
+    doc["state"] = this->isOn();
     doc["onTime"] = onTime.getHour() * 100 + onTime.getMinute();
     doc["offTime"] = offTime.getHour() * 100 + offTime.getMinute();
   }
@@ -71,5 +68,4 @@ private:
   uint8_t pin;
   TimeOfDay onTime;
   TimeOfDay offTime;
-  bool state;
 };

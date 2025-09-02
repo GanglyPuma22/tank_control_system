@@ -12,7 +12,6 @@
 #endif
 
 #include "../config/Credentials.h"
-#include <AsyncWebSocket.h>
 #include <SPI.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -31,8 +30,7 @@ public:
 
   // Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
   CameraDevice(const std::string &name, const uint8_t pins[6],
-               Resolution res = Resolution::VGA,
-               AsyncWebSocket *streamWebSocket = nullptr, int8_t fps = 5,
+               Resolution res = Resolution::VGA, int8_t fps = 5,
                int8_t cameraTaskPriority = 8); // UDP priority 18
 
   static constexpr size_t MAX_BUFFER_SIZE =
@@ -44,7 +42,6 @@ public:
   void update() override;
   void turnOn() override;
   void turnOff() override;
-  bool isOn() const override;
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
   void setResolution(Resolution res);
@@ -58,7 +55,6 @@ public:
   void handleStreamTaskAsync(void *params);
 
 private:
-  AsyncWebSocket *streamWebSocket;
   int8_t fps;
   int8_t cameraTaskPriority;
   const uint8_t csPin, sckPin, misoPin, mosiPin, sdaPin, sclPin;

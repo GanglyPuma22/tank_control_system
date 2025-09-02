@@ -57,7 +57,7 @@
         // Load devices after login
         loadDevice("heatLamp");
         loadDevice("lights");
-        loadDevice("fan");
+        loadDevice("camera");
       } else {
         loginCard.classList.remove("hidden");
         dashboard.classList.add("hidden");
@@ -143,15 +143,16 @@
         class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
     </div>
 
-    <!-- Fan -->
-    <div id="fan" class="bg-white shadow p-4 rounded-lg">
-      <h3 class="text-lg font-bold mb-2">🌀 Fan</h3>
+    <!-- Camera -->
+    <div id="camera" class="bg-white shadow p-4 rounded-lg">
+      <h3 class="text-lg font-bold mb-2">📸 Camera</h3>
       <p><b>Desired:</b> <span class="desired">{}</span></p>
       <p><b>Reported:</b> <span class="reported">{}</span></p>
-      <label class="block mt-2">
-        Speed (%): <input type="number" id="fanSpeed" min="0" max="100" class="border rounded p-1 w-20 ml-2" />
+      <label class="flex items-center mt-2">
+        <input type="checkbox" id="cameraToggle" class="mr-2">
+        <span>On</span>
       </label>
-      <button onclick="sendCommand('fan', {speed: parseInt(document.getElementById('fanSpeed').value)})"
+      <button onclick="sendCommand('camera', {on: document.getElementById('cameraToggle').checked})"
         class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
     </div>
 
@@ -164,7 +165,7 @@
       <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
       <script>
         const video = document.getElementById("tankStream");
-        const streamUrl = "https://mesh-reading-ivory-fiber.trycloudflare.com/stream.m3u8";
+        const streamUrl = "https://books-gis-repeat-attorney.trycloudflare.com/stream.m3u8";
 
         if (Hls.isSupported()) {
           const hls = new Hls();

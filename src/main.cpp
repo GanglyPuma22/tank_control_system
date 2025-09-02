@@ -3,22 +3,11 @@
 #include "utils/firebase/FirebaseWrapper.h"
 #include <Adafruit_Sensor.h>
 #include <Arduino.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <WiFiClientSecure.h>
 #include <devices/HeatLamp.h>
 #include <devices/Light.h>
 #include <sensors/DHT11Sensor.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiUtil.h>
-
-// Async web server setup for serving camere snapshots / MJPEG stream
-AsyncWebServer server(80);
-// create an easy-to-use handler
-static AsyncWebSocketMessageHandler wsHandler;
-// add it to the websocket server
-static AsyncWebSocket streamWebSocket("/stream", wsHandler.eventHandler());
-TaskHandle_t handleCaptureTask;
 
 // Firebase setup using FirebaseClient class wrapper
 FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
@@ -31,7 +20,6 @@ FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // accordingly.
 //***** */
 #define DHTTYPE DHT11
-constexpr size_t MAXIMUM_NUMBER_OF_CLIENTS = 1; // Max number of WS clients
 
 // Pin definitions
 constexpr uint8_t DHT_PIN = 18;
@@ -64,7 +52,7 @@ constexpr int8_t framesPerSecond = 5;
 constexpr int8_t cameraTaskPriority = 8;
 uint8_t camPins[6] = {5, 4, 7, 6, 8, 9}; // CS, SCK, MISO, MOSI, SDA, SCL
 CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
-                    &streamWebSocket, framesPerSecond, cameraTaskPriority);
+                    framesPerSecond, cameraTaskPriority);
 
 void setup() {
   Serial.begin(115200);
@@ -78,51 +66,6 @@ void setup() {
   camera.begin();
 
   WiFiUtil::connectAndSyncTime();
-
-  // TODO Move setup of AsyncWebServer to helper class
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hello from ESP32-C3");
-  });
-
-  wsHandler.onConnect([](AsyncWebSocket *server, AsyncWebSocketClient *client) {
-    Serial.printf("Client %" PRIu32 " connected\n", client->id());
-    server->textAll("New client: " + String(client->id()));
-    // Start streaming camera data to configured IP and Port in Credentials.h
-    // Stream as soon as the one-at-a-time allowed client connects
-    camera.startStreamTaskAsync();
-  });
-
-  wsHandler.onDisconnect([](AsyncWebSocket *server, uint32_t clientId) {
-    Serial.printf("Client %" PRIu32 " disconnected\n", clientId);
-    server->textAll("Client " + String(clientId) + " disconnected");
-  });
-  wsHandler.onError([](AsyncWebSocket *server, AsyncWebSocketClient *client,
-                       uint16_t errorCode, const char *reason, size_t len) {
-    Serial.printf("Client %" PRIu32 " error: %" PRIu16 ": %s\n", client->id(),
-                  errorCode, reason);
-  });
-
-  wsHandler.onMessage([](AsyncWebSocket *server, AsyncWebSocketClient *client,
-                         const uint8_t *data, size_t len) {
-    Serial.printf("Client %" PRIu32 " data: %s\n", client->id(),
-                  (const char *)data);
-  });
-
-  // allow only one connection at a time
-  server.addHandler(&streamWebSocket)
-      .addMiddleware([](AsyncWebServerRequest *request, ArMiddlewareNext next) {
-        if (streamWebSocket.count() >
-            MAXIMUM_NUMBER_OF_CLIENTS - 1) { //-1 because streamWebSocket.counts
-                                             // works like array indexing
-          request->send(503, "text/plain", "Server is busy");
-        } else {
-          // process next middleware and at the end the handler
-          next();
-        }
-      });
-
-  server.addHandler(&streamWebSocket);
-  server.begin();
 
   // Start firebase app with a stream path to listen for commands
   firebaseApp.begin("/devices");
@@ -162,8 +105,6 @@ void loop() {
     }
     roomLight.update();
 
-    firebaseApp.publishReportedStates();
-
-    streamWebSocket.cleanupClients();
+    // firebaseApp.publishReportedStates();
   }
 }

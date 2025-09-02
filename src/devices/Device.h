@@ -8,6 +8,7 @@ public:
   Device(const std::string &name = "unregistered") : name(name) {
     // Safe auto-registration
     registry()[name] = this;
+    state = false;
   } // todo: Figure out way to not have name in html depend on this name
 
   static Device *getDevice(const std::string &name) {
@@ -20,7 +21,6 @@ public:
   virtual void update() = 0; // called in main loop
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
-  virtual bool isOn() const = 0;
   // Functions to handle state syncing between webpage and esp32
   virtual void applyState(JsonVariantConst desired) = 0;
   virtual void reportState(JsonDocument &doc) = 0;
@@ -29,8 +29,11 @@ public:
   static const std::map<std::string, Device *> &getAllDevices() {
     return registry();
   }
+  virtual bool isOn() { return state; }
+  virtual void setState(bool newState) { state = newState; }
 
 private:
+  bool state;
   std::string name;
   // Singleton accessor for registry
   static std::map<std::string, Device *> &registry() {

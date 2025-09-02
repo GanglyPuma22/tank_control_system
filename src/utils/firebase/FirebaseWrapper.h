@@ -11,7 +11,7 @@ public:
   FirebaseWrapper(const char *apiKey, const char *email, const char *password,
                   const char *dbUrl);
 
-  void begin(const char *stream_path = nullptr);
+  void begin(const char *dataStreamPath = nullptr);
   void loop();
 
   // High-level API for DB interaction
@@ -30,13 +30,13 @@ public:
 private:
   static void onSetResultStatic(AsyncResult &r); // static callback
   static void onGetResultStatic(AsyncResult &result);
-  static void streamCallback(AsyncResult &result);
+  static void dataStreamCallback(AsyncResult &result);
   UserAuth userAuth;
   FirebaseApp app;
-  WiFiClientSecure sslClient, streamSslClient;
+  WiFiClientSecure sslClient, dataStreamSslClient;
   using AsyncClient = AsyncClientClass;
   AsyncClient asyncClient;
-  AsyncClient streamClient;
+  AsyncClient dataStreamClient;
   RealtimeDatabase database;
   const char *databaseUrl;
 };

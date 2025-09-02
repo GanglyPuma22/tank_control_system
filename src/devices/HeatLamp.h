@@ -6,12 +6,12 @@ class HeatLamp : public Device {
 public:
   HeatLamp(const std::string &name, uint8_t pin, float onTempF, float offTempF)
       : Device(name), pin(pin), heatLampOnTempF(onTempF),
-        heatLampOffTempF(offTempF), state(false) {}
+        heatLampOffTempF(offTempF) {}
 
   void begin() override {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, HIGH); // OFF initially
-    state = false;
+    this->setState(false);
   }
 
   void update() override {
@@ -19,25 +19,23 @@ public:
   }
 
   void update(float temperatureF) {
-    if ((temperatureF < heatLampOnTempF) && !state)
+    if ((temperatureF < heatLampOnTempF) && !this->isOn())
       turnOn();
-    else if (temperatureF >= heatLampOffTempF && state)
+    else if (temperatureF >= heatLampOffTempF && this->isOn())
       turnOff();
   }
 
   void turnOn() override {
     digitalWrite(pin, LOW); // Turn on the relay
-    state = true;
+    this->setState(true);
     Serial.println("Heat lamp ON");
   }
 
   void turnOff() override {
     digitalWrite(pin, HIGH); // Turn off the relay
-    state = false;
+    this->setState(false);
     Serial.println("Heat lamp OFF");
   }
-
-  bool isOn() const override { return state; }
 
   void setHeatLampTemp(float onTempF, float offTempF) {
     heatLampOnTempF = onTempF;
@@ -45,7 +43,6 @@ public:
   }
 
   void applyState(JsonVariantConst desired) override {
-    Serial.print("HeatLamp applyState called\n");
     if (desired["on"].is<JsonVariantConst>()) {
       bool shouldBeOn = desired["on"].as<bool>();
       if (shouldBeOn) {
@@ -66,7 +63,7 @@ public:
   }
 
   void reportState(JsonDocument &doc) override {
-    doc["state"] = isOn();
+    doc["state"] = this->isOn();
     doc["heatLampOnTempF"] = heatLampOnTempF;
     doc["heatLampOffTempF"] = heatLampOffTempF;
   }
@@ -75,5 +72,4 @@ private:
   uint8_t pin;
   float heatLampOnTempF;
   float heatLampOffTempF;
-  bool state;
 };

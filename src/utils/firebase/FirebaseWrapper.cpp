@@ -10,15 +10,15 @@ FirebaseWrapper::FirebaseWrapper(const char *apiKey, const char *email,
 // nullptr; FirebaseWrapper::ValueType FirebaseWrapper::lastValueType =
 //     FirebaseWrapper::ValueType::STRING;
 
-void FirebaseWrapper::begin(const char *stream_path) {
+void FirebaseWrapper::begin(const char *dataStreamPath) {
   // Attach ssl clients to their respective async clients
   asyncClient.setClient(sslClient);
-  streamClient.setClient(streamSslClient);
+  dataStreamClient.setClient(dataStreamSslClient);
 
   sslClient.setInsecure(); // skip cert check for now
   sslClient.setHandshakeTimeout(5);
-  streamSslClient.setInsecure();
-  streamSslClient.setHandshakeTimeout(5);
+  dataStreamSslClient.setInsecure();
+  dataStreamSslClient.setHandshakeTimeout(5);
 
   // Initialize app with async client and user auth, no callback
   // Callbacks are handled at setValue and getValue calls
@@ -34,10 +34,11 @@ void FirebaseWrapper::begin(const char *stream_path) {
     Serial.printf("Token: %s\n", app.getToken().c_str());
   }
 
-  streamClient.setSSEFilters("get,put,patch,keep-alive,cancel,auth_revoked");
-  if (stream_path) {
-    Serial.printf("Starting stream at path: %s\n", stream_path);
-    subscribeValue(stream_path);
+  dataStreamClient.setSSEFilters(
+      "get,put,patch,keep-alive,cancel,auth_revoked");
+  if (dataStreamPath) {
+    Serial.printf("Starting data stream listener path: %s\n", dataStreamPath);
+    subscribeValue(dataStreamPath);
   }
 }
 
@@ -70,11 +71,11 @@ void FirebaseWrapper::getValue(const char *path) {
 }
 
 void FirebaseWrapper::subscribeValue(const char *path) {
-  database.get(streamClient, path, streamCallback,
+  database.get(dataStreamClient, path, dataStreamCallback,
                true /* SSE mode (HTTP Streaming) */, "dbStreamTask");
 }
 
-void FirebaseWrapper::streamCallback(AsyncResult &aResult) {
+void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
   // Exits when no result is available when calling from the loop.
   if (!aResult.isResult())
     return;
@@ -97,18 +98,18 @@ void FirebaseWrapper::streamCallback(AsyncResult &aResult) {
   }
 
   if (aResult.available()) {
-    RealtimeDatabaseResult &stream = aResult.to<RealtimeDatabaseResult>();
-    if (stream.isStream()) {
+    RealtimeDatabaseResult &streamResult = aResult.to<RealtimeDatabaseResult>();
+    if (streamResult.isStream()) {
       Serial.println("----------------------------");
       Firebase.printf("task: %s\n", aResult.uid().c_str());
-      Firebase.printf("event: %s\n", stream.event().c_str());
-      Firebase.printf("path: %s\n", stream.dataPath().c_str());
-      Firebase.printf("data: %s\n", stream.to<const char *>());
-      Firebase.printf("type: %d\n", stream.type());
+      Firebase.printf("event: %s\n", streamResult.event().c_str());
+      Firebase.printf("path: %s\n", streamResult.dataPath().c_str());
+      Firebase.printf("data: %s\n", streamResult.to<const char *>());
+      Firebase.printf("type: %d\n", streamResult.type());
 
-      String path = stream.dataPath();
+      String path = streamResult.dataPath();
       String end_identifier = "/desired";
-      Serial.printf("Full path recieved for stream: %s\n", path.c_str());
+      Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
       if (path.endsWith(end_identifier)) {
         String devName = path.substring(
             1, path.length() -
@@ -116,8 +117,8 @@ void FirebaseWrapper::streamCallback(AsyncResult &aResult) {
         Serial.printf("Received desired stat for device name: %s\n",
                       devName.c_str());
         auto it = Device::getDevice(devName.c_str());
-        if (it) {                                        // nullptr check
-          String payloadStr = stream.to<const char *>(); // get raw JSON
+        if (it) {                                              // nullptr check
+          String payloadStr = streamResult.to<const char *>(); // get raw JSON
           JsonDocument doc; // adjust size as needed
           DeserializationError err = deserializeJson(doc, payloadStr);
           if (!err) {

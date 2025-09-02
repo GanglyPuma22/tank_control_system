@@ -2,12 +2,12 @@
 
 // Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
 CameraDevice::CameraDevice(const std::string &name, const uint8_t pins[6],
-                           Resolution res, AsyncWebSocket *ws, int8_t fps,
+                           Resolution res, int8_t fps,
                            int8_t cameraTaskPriority)
     : Device(name), csPin(pins[0]), sckPin(pins[1]), misoPin(pins[2]),
-      mosiPin(pins[3]), sdaPin(pins[4]), sclPin(pins[5]),
-      camera_initialized(false), resolution(res), streamWebSocket(ws), fps(fps),
-      cameraTaskPriority(cameraTaskPriority), camera(OV2640, pins[0]) {
+      mosiPin(pins[3]), sdaPin(pins[4]), sclPin(pins[5]), resolution(res),
+      fps(fps), cameraTaskPriority(cameraTaskPriority),
+      camera(OV2640, pins[0]) {
   xPeriod = pdMS_TO_TICKS((1000 / (fps)));
 }
 
@@ -41,35 +41,52 @@ void CameraDevice::begin() {
   camera.clear_fifo_flag();
   setResolution(resolution);
 
+  this->setState(true);
   Serial.println("📸 Camera initialized 📸");
-  camera_initialized = true;
 }
 
 void CameraDevice::update() {
   // No periodic updates needed
 }
 
-void CameraDevice::turnOn() { camera_initialized = true; }
-void CameraDevice::turnOff() { camera_initialized = false; }
-bool CameraDevice::isOn() const { return camera_initialized; }
+void CameraDevice::turnOn() {
+  // Setting state first to make sure camera passes on check
+  this->setState(true);
+
+  // Only start stream if Task doesnt exist already
+  if (handleStreamTask == nullptr) {
+    startStreamTaskAsync();
+  }
+}
+void CameraDevice::turnOff() {
+  this->setState(false);
+
+  Serial.println("Turning off the Stream!");
+  if (handleStreamTask != nullptr) {
+    vTaskDelete(handleStreamTask);
+    handleStreamTask = nullptr;
+  }
+}
 
 void CameraDevice::applyState(JsonVariantConst desired) {
   if (desired["on"].is<JsonVariantConst>()) {
-    turnOn();
-  } else if (desired["off"].is<JsonVariantConst>()) {
-    turnOff();
+    bool shouldBeOn = desired["on"].as<bool>();
+    if (shouldBeOn) {
+      turnOn();
+    } else {
+      turnOff();
+    }
   }
 }
 
 void CameraDevice::reportState(JsonDocument &doc) {
-  doc["camera_initialized"] = camera_initialized;
+  doc["state"] = this->isOn();
 }
 
 void CameraDevice::handleStreamTaskAsync(void *param) {
   // Set last wake time for accurate periodic delay
   xLastWakeTime = xTaskGetTickCount();
-  while (true && streamWebSocket->count() >
-                     0) { // Make sure to only stream if clients are connected
+  while (true) {
 
     if (!capturing) {
       camera.flush_fifo();
@@ -117,11 +134,13 @@ void CameraDevice::handleStreamTaskAsync(void *param) {
       BaseType_t wasDelayed = xTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
   }
+  Serial.print("ERROR: Issue during camera capture process... Ending Stream!");
   vTaskDelete(NULL);
+  handleStreamTask = nullptr;
 }
 
 void CameraDevice::startStreamTaskAsync() {
-  if (!camera_initialized) {
+  if (!this->isOn()) {
     Serial.println("ERROR: Camera not initialized - cannot start stream task");
     return;
   }
