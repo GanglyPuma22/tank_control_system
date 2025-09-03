@@ -5,95 +5,8 @@
   <meta charset="UTF-8">
   <title>Tank Dashboard MVP</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-
-    // Firebase Config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDaXSoK-VMwnAj5X0e_FOG826ABBagVfLE",
-      authDomain: "yasha-tank-controller.firebaseapp.com",
-      databaseURL: "https://yasha-tank-controller-default-rtdb.firebaseio.com",
-      projectId: "yasha-tank-controller",
-      storageBucket: "yasha-tank-controller.firebasestorage.app",
-      messagingSenderId: "446410548277",
-      appId: "1:446410548277:web:3549ce197d78fc97e47d7c",
-      measurementId: "G-37830TEG5L"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
-
-    // --------------------------
-    // Auth
-    // --------------------------
-    async function login() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch (err) {
-        document.getElementById("authStatus").textContent = "❌ Login failed";
-        alert(err.message);
-      }
-    }
-    async function logout() {
-      await signOut(auth);
-    }
-
-    // Update UI based on auth state
-    onAuthStateChanged(auth, user => {
-      const loginCard = document.getElementById("loginCard");
-      const dashboard = document.getElementById("dashboard");
-      const statusCorner = document.getElementById("statusCorner");
-
-      if (user) {
-        loginCard.classList.add("hidden");
-        dashboard.classList.remove("hidden");
-        statusCorner.textContent = `✅ Logged in as ${user.email}`;
-
-        // Load devices after login
-        loadDevice("heatLamp");
-        loadDevice("lights");
-        loadDevice("camera");
-      } else {
-        loginCard.classList.remove("hidden");
-        dashboard.classList.add("hidden");
-        statusCorner.textContent = "🔒 Logged out";
-      }
-    });
-
-    // --------------------------
-    // Device logic
-    // --------------------------
-    function loadDevice(deviceId) {
-      const desiredRef = ref(db, "devices/" + deviceId + "/desired");
-      const reportedRef = ref(db, "devices/" + deviceId + "/reported");
-
-      // Desired listener
-      onValue(desiredRef, snap => {
-        const data = snap.val() || {};
-        document.querySelector(`#${deviceId} .desired`).textContent = JSON.stringify(data);
-      });
-
-      // Reported listener
-      onValue(reportedRef, snap => {
-        const data = snap.val() || {};
-        document.querySelector(`#${deviceId} .reported`).textContent = JSON.stringify(data);
-      });
-    }
-
-    function sendCommand(deviceId, newDesired) {
-      set(ref(db, "devices/" + deviceId + "/desired"), newDesired);
-    }
-
-    // Expose to HTML
-    window.login = login;
-    window.logout = logout;
-    window.sendCommand = sendCommand;
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script type="module" src="js/main.js"></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen flex flex-col items-center p-6 relative">
@@ -118,42 +31,83 @@
   <div id="dashboard" class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-5xl hidden">
 
     <!-- Heat Lamp -->
-    <div id="heatLamp" class="bg-white shadow p-4 rounded-lg">
+    <div id="heatLamp" class="bg-white shadow p-4 rounded-lg relative">
       <h3 class="text-lg font-bold mb-2">🔥 Heat Lamp</h3>
-      <p><b>Desired:</b> <span class="desired">{}</span></p>
-      <p><b>Reported:</b> <span class="reported">{}</span></p>
-      <label class="flex items-center mt-2">
-        <input type="checkbox" id="heatLampToggle" class="mr-2">
-        <span>On</span>
-      </label>
-      <button onclick="sendCommand('heatLamp', {on: document.getElementById('heatLampToggle').checked})"
-        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+      <div id="heatLampStatus"
+        class="absolute top-4 right-4 px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-800">
+        --
+      </div>
+      <div class="bg-gray-50 p-3 rounded-lg">
+        <h4 class="font-semibold mb-2">Controls</h4>
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <label for="heatLampOnAbove">On Above:</label>
+            <input type="number" id="heatLampOnAbove" class="border rounded px-2 py-1 w-20" step="0.1">
+            <span>°F</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="heatLampOffAbove">Off Above:</label>
+            <input type="number" id="heatLampOffAbove" class="border rounded px-2 py-1 w-20" step="0.1">
+            <span>°F</span>
+          </div>
+        </div>
+        <button onclick="updateHeatLamp()" class="mt-3 bg-green-500 text-white px-3 py-1 rounded w-full">
+          Update
+        </button>
+      </div>
     </div>
 
     <!-- Lights -->
-    <div id="lights" class="bg-white shadow p-4 rounded-lg">
+    <div id="lights" class="bg-white shadow p-4 rounded-lg relative">
       <h3 class="text-lg font-bold mb-2">💡 Lights</h3>
-      <p><b>Desired:</b> <span class="desired">{}</span></p>
-      <p><b>Reported:</b> <span class="reported">{}</span></p>
-      <label class="flex items-center mt-2">
-        <input type="checkbox" id="lightsToggle" class="mr-2">
-        <span>On</span>
-      </label>
-      <button onclick="sendCommand('lights', {on: document.getElementById('lightsToggle').checked})"
-        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+      <div id="lightsStatus"
+        class="absolute top-4 right-4 px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-800">
+        --
+      </div>
+      <div class="bg-gray-50 p-3 rounded-lg">
+        <h4 class="font-semibold mb-2">Controls</h4>
+        <div class="space-y-2">
+          <div class="flex items-center">
+            <label class="w-24">On Time:</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="lightsOnHour" class="border rounded px-2 py-1 w-16" min="0" max="23"
+                placeholder="HH" maxlength="2" oninput="if(this.value.length > 2) this.value=this.value.slice(0,2)">
+              <span>:</span>
+              <input type="number" id="lightsOnMin" class="border rounded px-2 py-1 w-16" min="0" max="59"
+                placeholder="MM" maxlength="2" oninput="if(this.value.length > 2) this.value=this.value.slice(0,2)">
+            </div>
+          </div>
+          <div class="flex items-center">
+            <label class="w-24">Off Time:</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="lightsOffHour" class="border rounded px-2 py-1 w-16" min="0" max="23"
+                placeholder="HH" maxlength="2" oninput="if(this.value.length > 2) this.value=this.value.slice(0,2)">
+              <span>:</span>
+              <input type="number" id="lightsOffMin" class="border rounded px-2 py-1 w-16" min="0" max="59"
+                placeholder="MM" maxlength="2" oninput="if(this.value.length > 2) this.value=this.value.slice(0,2)">
+            </div>
+          </div>
+        </div>
+        <button onclick="updateLights()" class="mt-3 bg-green-500 text-white px-3 py-1 rounded w-full">
+          Update
+        </button>
+      </div>
     </div>
 
     <!-- Camera -->
-    <div id="camera" class="bg-white shadow p-4 rounded-lg">
+    <div id="camera" class="bg-white shadow p-4 rounded-lg relative">
       <h3 class="text-lg font-bold mb-2">📸 Camera</h3>
-      <p><b>Desired:</b> <span class="desired">{}</span></p>
-      <p><b>Reported:</b> <span class="reported">{}</span></p>
-      <label class="flex items-center mt-2">
-        <input type="checkbox" id="cameraToggle" class="mr-2">
-        <span>On</span>
-      </label>
-      <button onclick="sendCommand('camera', {on: document.getElementById('cameraToggle').checked})"
-        class="mt-2 bg-green-500 text-white px-3 py-1 rounded">Update</button>
+      <div id="cameraStatus"
+        class="absolute top-4 right-4 px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-800">
+        --
+      </div>
+      <div class="bg-gray-50 p-3 rounded-lg">
+        <h4 class="font-semibold mb-2">Controls</h4>
+        <div class="space-x-2">
+          <button onclick="updateCamera(true)" class="bg-green-500 text-white px-3 py-1 rounded">Turn On</button>
+          <button onclick="updateCamera(false)" class="bg-red-500 text-white px-3 py-1 rounded">Turn Off</button>
+        </div>
+      </div>
     </div>
 
     <!-- Video Stream -->
@@ -161,34 +115,6 @@
       <h3 class="text-lg font-bold mb-2">📹 Tank Camera</h3>
       <video id="tankStream" class="w-[640px] h-[320px] mx-auto rounded border" autoplay controls muted
         playsinline></video>
-
-      <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-      <script>
-        const video = document.getElementById("tankStream");
-        const streamUrl = "https://books-gis-repeat-attorney.trycloudflare.com/stream.m3u8";
-
-        if (Hls.isSupported()) {
-          const hls = new Hls();
-          hls.loadSource(streamUrl);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.ERROR, function (event, data) {
-            console.warn("HLS.js error:", data);
-            if (data.fatal) {
-              console.log("🔄 Reloading HLS stream...");
-              hls.startLoad();
-            }
-          });
-        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          // Safari native HLS support
-          video.src = streamUrl;
-          video.addEventListener("error", () => {
-            console.log("🔄 Reloading stream for Safari...");
-            video.load();
-          });
-        } else {
-          video.outerHTML = "<p>⚠️ Your browser does not support HLS streaming.</p>";
-        }
-      </script>
     </div>
 
 
