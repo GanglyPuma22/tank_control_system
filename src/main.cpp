@@ -27,13 +27,13 @@ constexpr uint8_t HEAT_LAMP_PIN = 0; // Pin for heat lamp relay
 constexpr uint8_t LIGHT_PIN = 1;     // Pin for light relay
 
 // Temp thresholds
-constexpr float HEAT_LAMP_ON_TEMP_F =
+constexpr float HEAT_LAMP_ON_ABOVE_TEMP_F =
     80.0f; // should be 66 but higher for testing relay
-constexpr float HEAT_LAMP_OFF_TEMP_F = 100.0f;
+constexpr float HEAT_LAMP_OFF_ABOVE_TEMP_F = 100.0f;
 
 DHTSensor dht11Sensor(DHT_PIN, DHTTYPE);
-HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_TEMP_F,
-                  HEAT_LAMP_OFF_TEMP_F);
+HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
+                  HEAT_LAMP_OFF_ABOVE_TEMP_F);
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
@@ -64,12 +64,10 @@ void setup() {
   heatLamp.begin();
   roomLight.begin();
   camera.begin();
-
   WiFiUtil::connectAndSyncTime();
 
   // Start firebase app with a stream path to listen for commands
   firebaseApp.begin("/devices");
-
   delay(1000); // Allow time for devices to initialize
   Serial.println("Initialization complete.!");
 }
@@ -104,7 +102,10 @@ void loop() {
       Serial.println("Failed to read sensor");
     }
     roomLight.update();
+  }
 
-    // firebaseApp.publishReportedStates();
+  // Publish states every 2 seconds - Seems stable compared to this in 1s loop
+  if (now % 2000 == 0) {
+    firebaseApp.publishReportedStates();
   }
 }

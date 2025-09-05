@@ -1,9 +1,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getDatabase } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import { firebaseConfig } from './config.js';
-import { initializeAuth, login, logout } from './auth.js';
-import { initializeDevices, updateHeatLamp, updateLights, updateCamera } from './devices.js';
+import { firebaseConfig } from "./config.js";
+import { initializeAuth, login, logout } from "./auth.js";
+import {
+  initializeDevices,
+  updateHeatLamp,
+  updateLights,
+  updateCamera,
+} from "./devices.js";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -23,9 +28,9 @@ globalThis.updateCamera = updateCamera;
 
 // Also expose on window for backwards compatibility
 Object.assign(window, {
-    login,
-    logout,
-    updateHeatLamp,
-    updateLights,
-    updateCamera
+  login,
+  logout,
+  updateHeatLamp,
+  updateLights,
+  updateCamera,
 });

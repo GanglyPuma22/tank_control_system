@@ -5,11 +5,6 @@ FirebaseWrapper::FirebaseWrapper(const char *apiKey, const char *email,
     : userAuth(apiKey, email, password), asyncClient(sslClient),
       databaseUrl(dbUrl) {}
 
-// FirebaseWrapper::StringCallback FirebaseWrapper::lastStringCallback =
-// nullptr; FirebaseWrapper::FloatCallback FirebaseWrapper::lastFloatCallback =
-// nullptr; FirebaseWrapper::ValueType FirebaseWrapper::lastValueType =
-//     FirebaseWrapper::ValueType::STRING;
-
 void FirebaseWrapper::begin(const char *dataStreamPath) {
   // Attach ssl clients to their respective async clients
   asyncClient.setClient(sslClient);
@@ -21,7 +16,6 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
   dataStreamSslClient.setHandshakeTimeout(5);
 
   // Initialize app with async client and user auth, no callback
-  // Callbacks are handled at setValue and getValue calls
   initializeApp(asyncClient, app, getAuth(userAuth));
 
   app.getApp<RealtimeDatabase>(database);
@@ -44,7 +38,14 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
 
 void FirebaseWrapper::loop() {
   app.loop();
-  // database.loop();
+
+  // One time initialization to update devices to last desired state in database
+  // Struggled getting this done in setup since the database connections dont
+  // have time to settle
+  if (app.ready() && !devicesInitialized) {
+    fetchAndApplyDesiredStates();
+    devicesInitialized = true;
+  }
 }
 
 void FirebaseWrapper::setValue(const char *path, const char *value) {
@@ -59,14 +60,6 @@ void FirebaseWrapper::setValue(const char *path, float value) {
   if (app.ready()) {
     database.set<float>(asyncClient, path, value,
                         &FirebaseWrapper::onSetResultStatic, "dbSetTask");
-  }
-}
-
-void FirebaseWrapper::getValue(const char *path) {
-  if (app.ready()) {
-
-    database.get(asyncClient, path, onGetResultStatic,
-                 false /* only for Stream */, "dbGetTask");
   }
 }
 
@@ -86,11 +79,6 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
                     aResult.eventLog().code());
   }
 
-  if (aResult.isDebug()) {
-    Firebase.printf("Debug task: %s, msg: %s\n", aResult.uid().c_str(),
-                    aResult.debug().c_str());
-  }
-
   if (aResult.isError()) {
     Firebase.printf("Error task: %s, msg: %s, code: %d\n",
                     aResult.uid().c_str(), aResult.error().message().c_str(),
@@ -100,13 +88,6 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
   if (aResult.available()) {
     RealtimeDatabaseResult &streamResult = aResult.to<RealtimeDatabaseResult>();
     if (streamResult.isStream()) {
-      Serial.println("----------------------------");
-      Firebase.printf("task: %s\n", aResult.uid().c_str());
-      Firebase.printf("event: %s\n", streamResult.event().c_str());
-      Firebase.printf("path: %s\n", streamResult.dataPath().c_str());
-      Firebase.printf("data: %s\n", streamResult.to<const char *>());
-      Firebase.printf("type: %d\n", streamResult.type());
-
       String path = streamResult.dataPath();
       String end_identifier = "/desired";
       Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
@@ -114,7 +95,7 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
         String devName = path.substring(
             1, path.length() -
                    end_identifier.length()); // strip /devices/ and /desired
-        Serial.printf("Received desired stat for device name: %s\n",
+        Serial.printf("Received desired state for device name: %s\n",
                       devName.c_str());
         auto it = Device::getDevice(devName.c_str());
         if (it) {                                              // nullptr check
@@ -148,15 +129,35 @@ void FirebaseWrapper::publishReportedStates() {
     dev->reportState(doc);
 
     String path = "/devices/" + String(name.c_str()) + "/reported";
-    Serial.printf("Publishing reported state for device %s to path %s\n",
-                  name.c_str(), path.c_str());
-    // TODO MOVE TO HELPER
     String jsonStr;
     serializeJson(doc, jsonStr);
     object_t json(jsonStr.c_str()); // convert ArduinoJson → Firebase object_t
 
     database.set<object_t>(asyncClient, path, json, onSetResultStatic,
                            "publishState");
+  }
+}
+
+void FirebaseWrapper::fetchAndApplyDesiredStates() {
+  if (!app.ready()) {
+    return;
+  }
+  const auto &allDevices = Device::getAllDevices();
+
+  for (const auto &[name, dev] : allDevices) {
+    String path = "/devices/" + String(name.c_str()) + "/desired";
+    Serial.printf("Fetching desired state for device %s from path %s\n",
+                  name.c_str(), path.c_str());
+
+    // Using await get method since this function is called at setup
+    const char *desiredState = database.get<const char *>(asyncClient, path);
+    JsonDocument doc; // adjust size as needed
+    DeserializationError err = deserializeJson(doc, desiredState);
+    if (!err) {
+      dev->applyState(doc.as<JsonVariantConst>());
+    } else {
+      Serial.printf("Failed to parse JSON: %s\n", err.c_str());
+    }
   }
 }
 
@@ -168,22 +169,35 @@ void FirebaseWrapper::onSetResultStatic(AsyncResult &result) {
     Firebase.printf("[Firebase Error] - Set -  %s code: %d\n",
                     result.error().message().c_str(), result.error().code());
   }
-  if (result.available()) {
-    // Firebase.printf("[Firebase Data] %s\n", result.c_str());
-  }
 }
 
-// // Static callback for both String and float
-void FirebaseWrapper::onGetResultStatic(AsyncResult &result) {
-  if (!result.isResult() || result.isError()) {
-    Firebase.printf("[Firebase Error] - Get - %s\n",
-                    result.error().message().c_str());
-    return;
-  }
+// void FirebaseWrapper::applyDesiredStateStatic(AsyncResult &result) {
+//   if (!result.isResult() || result.isError()) {
+//     Firebase.printf("[Firebase Error] - Get - %s\n",
+//                     result.error().message().c_str());
+//     return;
+//   }
 
-  if (result.available()) {
-    Serial.println("----------------------------");
-    Firebase.printf("task: %s, payload: %s\n", result.uid().c_str(),
-                    result.c_str());
-  }
-}
+//   if (result.available()) {
+//     String path = result.dataPath();
+//     String end_identifier = "/desired";
+//     Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
+//     if (path.endsWith(end_identifier)) {
+//       String devName =
+//           path.substring(1, path.length() - end_identifier.length());
+//       Serial.printf("Received desired stat for device name: %s\n",
+//                     devName.c_str());
+//       auto it = Device::getDevice(devName.c_str());
+//       if (it) {                                        // nullptr check
+//         String payloadStr = result.to<const char *>(); // get raw JSON
+//         JsonDocument doc;                              // adjust size as
+//         needed DeserializationError err = deserializeJson(doc, payloadStr);
+//         if (!err) {
+//           it->applyState(doc.as<JsonVariantConst>());
+//         } else {
+//           Serial.printf("Failed to parse JSON: %s\n", err.c_str());
+//         }
+//       }
+//     }
+//   }
+// }

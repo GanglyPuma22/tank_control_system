@@ -1,6 +1,9 @@
 {
     "clang-format.executable": "C:\\Program Files\\LLVM\\bin\\clang-format.exe",
     "editor.formatOnSave": true,
+    "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
     "[cpp]": {
         "editor.defaultFormatter": "xaver.clang-format"
     },

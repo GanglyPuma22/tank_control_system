@@ -20,10 +20,11 @@ public:
     bool shouldBeOn = (onTime < offTime) ? (now >= onTime && now < offTime)
                                          : (now >= onTime || now < offTime);
 
-    if (shouldBeOn && !this->isOn())
+    if (shouldBeOn) {
       turnOn();
-    if (!shouldBeOn && this->isOn())
+    } else {
       turnOff();
+    }
   }
 
   void turnOn() override {
@@ -40,28 +41,36 @@ public:
 
   void applyState(JsonVariantConst desired) override {
 
-    if (desired["on"].is<JsonVariantConst>()) {
-      bool shouldBeOn = desired["on"].as<bool>();
+    if (desired["state"].is<JsonVariantConst>()) {
+      bool shouldBeOn = desired["state"].as<bool>();
       if (shouldBeOn) {
         turnOn();
       } else {
         turnOff();
       }
-    } else if (desired["timeOn"].is<JsonVariantConst>()) {
-      Serial.print("Implement this! \n");
-      // float onTime = desired["timeOn"].as<float>();
-      // float offTime = desired["timeOff"].as<float>();
-      // setOnOffTimes(onTime, offTime);
-      // Serial.printf(
-      //     "Light on/off times set to: on: %.1s off: %.1s\n",
-      //     onTempF, offTempF);
     }
+
+    if (desired["onTime"].is<JsonVariantConst>() &&
+        desired["offTime"].is<JsonVariantConst>()) {
+      String onTimeStr = desired["onTime"].as<String>();
+      String offTimeStr = desired["offTime"].as<String>();
+
+      setOnOffTimes(TimeOfDay::fromString(onTimeStr),
+                    TimeOfDay::fromString(offTimeStr));
+      Serial.printf("Light on/off times set to: on: %s off: %s\n", onTimeStr,
+                    offTimeStr);
+    }
+  }
+
+  void setOnOffTimes(TimeOfDay newOnTime, TimeOfDay newOffTime) {
+    this->onTime = newOnTime;
+    this->offTime = newOffTime;
   }
 
   void reportState(JsonDocument &doc) override {
     doc["state"] = this->isOn();
-    doc["onTime"] = onTime.getHour() * 100 + onTime.getMinute();
-    doc["offTime"] = offTime.getHour() * 100 + offTime.getMinute();
+    doc["onTime"] = onTime.toString();
+    doc["offTime"] = offTime.toString();
   }
 
 private:

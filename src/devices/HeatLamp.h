@@ -2,11 +2,15 @@
 #include "Device.h"
 #include <Arduino.h>
 
+// TODO IM REALIZING HEAT LAMP SHOULD PROBABLY JUST HAVE ONE CUTOFF TEMP.
+
+// AND THINK HOW IT WILL INTEGRATE WITH dynamic env control to match another
+// place.
 class HeatLamp : public Device {
 public:
   HeatLamp(const std::string &name, uint8_t pin, float onTempF, float offTempF)
-      : Device(name), pin(pin), heatLampOnTempF(onTempF),
-        heatLampOffTempF(offTempF) {}
+      : Device(name), pin(pin), onAboveTempF(onTempF), offAboveTempF(offTempF) {
+  }
 
   void begin() override {
     pinMode(pin, OUTPUT);
@@ -19,9 +23,9 @@ public:
   }
 
   void update(float temperatureF) {
-    if ((temperatureF < heatLampOnTempF) && !this->isOn())
+    if ((temperatureF < onAboveTempF))
       turnOn();
-    else if (temperatureF >= heatLampOffTempF && this->isOn())
+    else if (temperatureF >= offAboveTempF)
       turnOff();
   }
 
@@ -37,14 +41,14 @@ public:
     Serial.println("Heat lamp OFF");
   }
 
-  void setHeatLampTemp(float onTempF, float offTempF) {
-    heatLampOnTempF = onTempF;
-    heatLampOffTempF = offTempF;
+  void setHeatLampTemps(float onTempF, float offTempF) {
+    this->onAboveTempF = onTempF;
+    this->offAboveTempF = offTempF;
   }
 
   void applyState(JsonVariantConst desired) override {
-    if (desired["on"].is<JsonVariantConst>()) {
-      bool shouldBeOn = desired["on"].as<bool>();
+    if (desired["state"].is<JsonVariantConst>()) {
+      bool shouldBeOn = desired["state"].as<bool>();
       if (shouldBeOn) {
         turnOn();
       } else {
@@ -52,10 +56,11 @@ public:
       }
     }
 
-    if (desired["heatLampOnTempF"].is<JsonVariantConst>()) {
-      float onTempF = desired["heatLampOnTempF"].as<float>();
-      float offTempF = desired["heatLampOffTempF"].as<float>();
-      setHeatLampTemp(onTempF, offTempF);
+    if (desired["onAbove"].is<JsonVariantConst>() &&
+        desired["offAbove"].is<JsonVariantConst>()) {
+      float onTempF = desired["onAbove"].as<float>();
+      float offTempF = desired["offAbove"].as<float>();
+      setHeatLampTemps(onTempF, offTempF);
       Serial.printf(
           "Heat lamp target temps set to: onTemp: %.1f°F offTemp: %.1f°F\n",
           onTempF, offTempF);
@@ -64,12 +69,12 @@ public:
 
   void reportState(JsonDocument &doc) override {
     doc["state"] = this->isOn();
-    doc["heatLampOnTempF"] = heatLampOnTempF;
-    doc["heatLampOffTempF"] = heatLampOffTempF;
+    doc["onAbove"] = onAboveTempF;
+    doc["offAbove"] = offAboveTempF;
   }
 
 private:
   uint8_t pin;
-  float heatLampOnTempF;
-  float heatLampOffTempF;
+  float onAboveTempF;
+  float offAboveTempF;
 };

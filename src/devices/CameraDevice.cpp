@@ -69,8 +69,8 @@ void CameraDevice::turnOff() {
 }
 
 void CameraDevice::applyState(JsonVariantConst desired) {
-  if (desired["on"].is<JsonVariantConst>()) {
-    bool shouldBeOn = desired["on"].as<bool>();
+  if (desired["state"].is<JsonVariantConst>()) {
+    bool shouldBeOn = desired["state"].as<bool>();
     if (shouldBeOn) {
       turnOn();
     } else {

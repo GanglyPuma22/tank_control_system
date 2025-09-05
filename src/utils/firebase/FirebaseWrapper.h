@@ -22,14 +22,15 @@ public:
 
   // Async get and stream subscribe functions
   void subscribeValue(const char *path);
-  void getValue(const char *path);
 
   // Publish the reported state of all devices to Firebase
   void publishReportedStates();
 
+  // Fetch and apply the desired state for all devices from Firebase
+  void fetchAndApplyDesiredStates();
+
 private:
   static void onSetResultStatic(AsyncResult &r); // static callback
-  static void onGetResultStatic(AsyncResult &result);
   static void dataStreamCallback(AsyncResult &result);
   UserAuth userAuth;
   FirebaseApp app;
@@ -39,4 +40,5 @@ private:
   AsyncClient dataStreamClient;
   RealtimeDatabase database;
   const char *databaseUrl;
+  bool devicesInitialized = false;
 };
