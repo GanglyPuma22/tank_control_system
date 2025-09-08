@@ -88,7 +88,7 @@ void loop() {
       strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S",
                &time_info);
     }
-    firebaseApp.setValue("/time", time_buffer);
+    firebaseApp.setValue("/status/time", time_buffer);
 
     auto reading = dht11Sensor.readData();
     if (reading) {
@@ -96,8 +96,8 @@ void loop() {
       // Serial.printf("Temp: %.2f°C, humidityidity: %.2f%%\n", temperatureF,
       //               humidity);
       heatLamp.update(temperatureF);
-      firebaseApp.setValue("/temperature", temperatureF);
-      firebaseApp.setValue("/humidity", humidity);
+      firebaseApp.setValue("sensors/DHT11/reported/temperature", temperatureF);
+      firebaseApp.setValue("sensors/DHT11/reported/humidity", humidity);
     } else {
       Serial.println("Failed to read sensor");
     }

@@ -16,6 +16,10 @@ public:
   }
 
   void update() override {
+    if (this->getOverrideMode()) {
+      // In override mode, do not change state automatically
+      return;
+    }
     TimeOfDay now = TimeOfDay::now();
     bool shouldBeOn = (onTime < offTime) ? (now >= onTime && now < offTime)
                                          : (now >= onTime || now < offTime);
@@ -30,7 +34,6 @@ public:
   void turnOn() override {
     digitalWrite(pin, LOW);
     this->setState(true);
-    Serial.println("Light ON");
   }
 
   void turnOff() override {
@@ -40,14 +43,16 @@ public:
   }
 
   void applyState(JsonVariantConst desired) override {
-
     if (desired["state"].is<JsonVariantConst>()) {
+      this->setOverrideMode(true); // Manual override
       bool shouldBeOn = desired["state"].as<bool>();
       if (shouldBeOn) {
         turnOn();
       } else {
         turnOff();
       }
+    } else {
+      this->setOverrideMode(false); // Resume automatic control
     }
 
     if (desired["onTime"].is<JsonVariantConst>() &&

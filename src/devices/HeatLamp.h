@@ -23,6 +23,11 @@ public:
   }
 
   void update(float temperatureF) {
+    if (this->getOverrideMode()) {
+      // In override mode, do not change state automatically
+      return;
+    }
+
     if ((temperatureF < onAboveTempF))
       turnOn();
     else if (temperatureF >= offAboveTempF)
@@ -48,12 +53,15 @@ public:
 
   void applyState(JsonVariantConst desired) override {
     if (desired["state"].is<JsonVariantConst>()) {
+      this->setOverrideMode(true); // Manual override
       bool shouldBeOn = desired["state"].as<bool>();
       if (shouldBeOn) {
         turnOn();
       } else {
         turnOff();
       }
+    } else {
+      this->setOverrideMode(false); // Resume automatic control
     }
 
     if (desired["onAbove"].is<JsonVariantConst>() &&

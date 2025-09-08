@@ -31,9 +31,12 @@ public:
   }
   virtual bool isOn() { return state; }
   virtual void setState(bool newState) { state = newState; }
+  virtual void setOverrideMode(bool mode) { overrideMode = mode; }
+  virtual bool getOverrideMode() { return overrideMode; }
 
 private:
   bool state;
+  bool overrideMode = false;
   std::string name;
   // Singleton accessor for registry
   static std::map<std::string, Device *> &registry() {
