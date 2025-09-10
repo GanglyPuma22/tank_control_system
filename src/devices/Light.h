@@ -39,7 +39,6 @@ public:
   void turnOff() override {
     digitalWrite(pin, HIGH);
     this->setState(false);
-    Serial.println("Light OFF");
   }
 
   void applyState(JsonVariantConst desired) override {

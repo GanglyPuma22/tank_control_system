@@ -37,13 +37,11 @@ public:
   void turnOn() override {
     digitalWrite(pin, LOW); // Turn on the relay
     this->setState(true);
-    Serial.println("Heat lamp ON");
   }
 
   void turnOff() override {
     digitalWrite(pin, HIGH); // Turn off the relay
     this->setState(false);
-    Serial.println("Heat lamp OFF");
   }
 
   void setHeatLampTemps(float onTempF, float offTempF) {

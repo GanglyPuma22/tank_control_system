@@ -1,11 +1,11 @@
 #include "devices/CameraDevice.h"
 #include "esp_log.h"
 #include "utils/firebase/FirebaseWrapper.h"
-#include <Adafruit_Sensor.h>
 #include <Arduino.h>
 #include <devices/HeatLamp.h>
 #include <devices/Light.h>
 #include <sensors/DHT11Sensor.h>
+#include <sensors/MLX90614.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiUtil.h>
 
@@ -20,6 +20,8 @@ FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // accordingly.
 //***** */
 #define DHTTYPE DHT11
+#define SDA_PIN 8
+#define SCL_PIN 9
 
 // Pin definitions
 constexpr uint8_t DHT_PIN = 18;
@@ -32,25 +34,22 @@ constexpr float HEAT_LAMP_ON_ABOVE_TEMP_F =
 constexpr float HEAT_LAMP_OFF_ABOVE_TEMP_F = 100.0f;
 
 DHTSensor dht11Sensor(DHT_PIN, DHTTYPE);
+MLX90614 mlxSensor;
+
 HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
                   HEAT_LAMP_OFF_ABOVE_TEMP_F);
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
-// IMPORTANT FINDS
-// With TCP binarySendAll using entire buffer I cant get better than 5 fps seems
-// With TCP chunking there are some issues getting the queue to not fill
-// TRY GETTING UDP METRICS NEXT -> How fast can we take images
-// Try camera metrics too, how fast can i take images for realzies
-// With UDP I can also only squeeze out 5fps, this might be the camera
-// limitation at the moment. But now its stable and can stream low latency
 // TODO Try to see if we get a few more fps by using a seperate queue to send
-// images vs take to maximize camera throughput. Camera definition Desired rate
-// of image frames sending to websocket
+// images vs take to maximize camera throughput.
+
+// Camera frame rate for streaming
 constexpr int8_t framesPerSecond = 5;
 // Task priority for camera capture task
-constexpr int8_t cameraTaskPriority = 8;
-uint8_t camPins[6] = {5, 4, 7, 6, 8, 9}; // CS, SCK, MISO, MOSI, SDA, SCL
+constexpr int8_t cameraTaskPriority = 3;
+uint8_t camPins[6] = {5, 4,       7,
+                      6, SDA_PIN, SCL_PIN}; // CS, SCK, MISO, MOSI, SDA, SCL
 CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
                     framesPerSecond, cameraTaskPriority);
 
@@ -60,6 +59,7 @@ void setup() {
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
   Serial.println("Sensors and devices initializing...");
+  mlxSensor.begin();
   dht11Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
@@ -72,40 +72,62 @@ void setup() {
   Serial.println("Initialization complete.!");
 }
 
+unsigned long lastDeviceLoopUpdate = 0;
+unsigned long lastPublishedStateUpdate = 0;
+unsigned long lastSensorUpdate = 0;
+unsigned long lastSlowUpdate = 0;
+
 void loop() {
   unsigned long now = millis();
 
   firebaseApp.loop(); // Process Firebase app tasks
 
   // Run the rest of the period tasks every 1 second
-  if (now % 1000 == 0) {
+  if (now - lastDeviceLoopUpdate >= 1000) {
+    lastDeviceLoopUpdate = now;
     WiFiUtil::maintain(); // Keep Wi-Fi alive
 
-    // Read time from NTP
-    struct tm time_info;
-    char time_buffer[20];
-    if (WiFiUtil::getLocalTimeWithDST(time_info)) {
-      strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S",
-               &time_info);
-    }
-    firebaseApp.setValue("/status/time", time_buffer);
+    roomLight.update();
 
+    // Read time from NTP
+    struct tm timeInfo;
+    char timeBuffer[20];
+    if (WiFiUtil::getLocalTimeWithDST(timeInfo)) {
+      strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
+    }
+    firebaseApp.setValue("/status/time", timeBuffer);
+  }
+
+  if (now - lastSensorUpdate >= 2000) {
+    lastSensorUpdate = now;
+    // Read sensors and update heat lamp state
+    auto mlxReading = mlxSensor.readData();
+    if (mlxReading) {
+      auto [ambientTemp, objectTemp] = *mlxReading;
+      heatLamp.update(objectTemp);
+      firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
+                           ambientTemp);
+      firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
+    } else {
+      Serial.println("Failed to read MLX sensor");
+    }
+  }
+
+  // Publish states every 3 seconds - Seems stable compared to this in 1s loop
+  if (now - lastPublishedStateUpdate >= 3000) {
+    firebaseApp.publishReportedStates();
+    lastPublishedStateUpdate = now;
+  }
+
+  if (now - lastSlowUpdate >= 5000) {
+    lastSlowUpdate = now;
     auto reading = dht11Sensor.readData();
     if (reading) {
       auto [temperatureF, humidity] = *reading;
-      // Serial.printf("Temp: %.2f°C, humidityidity: %.2f%%\n", temperatureF,
-      //               humidity);
-      heatLamp.update(temperatureF);
       firebaseApp.setValue("sensors/DHT11/reported/temperature", temperatureF);
       firebaseApp.setValue("sensors/DHT11/reported/humidity", humidity);
     } else {
       Serial.println("Failed to read sensor");
     }
-    roomLight.update();
-  }
-
-  // Publish states every 2 seconds - Seems stable compared to this in 1s loop
-  if (now % 2000 == 0) {
-    firebaseApp.publishReportedStates();
   }
 }
