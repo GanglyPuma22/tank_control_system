@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <devices/HeatLamp.h>
 #include <devices/Light.h>
-#include <sensors/DHT11Sensor.h>
+#include <sensors/AHT20.h>
 #include <sensors/MLX90614.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiUtil.h>
@@ -19,12 +19,10 @@ FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // If you are using a different board, please adjust the pin numbers
 // accordingly.
 //***** */
-#define DHTTYPE DHT11
 #define SDA_PIN 8
 #define SCL_PIN 9
 
 // Pin definitions
-constexpr uint8_t DHT_PIN = 18;
 constexpr uint8_t HEAT_LAMP_PIN = 0; // Pin for heat lamp relay
 constexpr uint8_t LIGHT_PIN = 1;     // Pin for light relay
 
@@ -33,9 +31,8 @@ constexpr float HEAT_LAMP_ON_ABOVE_TEMP_F =
     80.0f; // should be 66 but higher for testing relay
 constexpr float HEAT_LAMP_OFF_ABOVE_TEMP_F = 100.0f;
 
-DHTSensor dht11Sensor(DHT_PIN, DHTTYPE);
-MLX90614 mlxSensor;
-
+MLX90614 mlxSensor; // Uses default I2C pins 8 (SDA) and 9 (SCL)
+AHT20 aht20Sensor;  // Uses default I2C pins 8 (SDA) and 9 (SCL)
 HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
                   HEAT_LAMP_OFF_ABOVE_TEMP_F);
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
@@ -45,7 +42,7 @@ Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
 // images vs take to maximize camera throughput.
 
 // Camera frame rate for streaming
-constexpr int8_t framesPerSecond = 5;
+constexpr int8_t framesPerSecond = 1;
 // Task priority for camera capture task
 constexpr int8_t cameraTaskPriority = 3;
 uint8_t camPins[6] = {5, 4,       7,
@@ -56,11 +53,11 @@ CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
 void setup() {
   Serial.begin(115200);
   // Enable for detailed debug output (for when the gremlins strike)
-  // Serial.setDebugOutput(true);
-  // esp_log_level_set("*", ESP_LOG_VERBOSE);
+  Serial.setDebugOutput(true);
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
   Serial.println("Sensors and devices initializing...");
   mlxSensor.begin();
-  dht11Sensor.begin();
+  aht20Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
   camera.begin();
@@ -104,7 +101,7 @@ void loop() {
     auto mlxReading = mlxSensor.readData();
     if (mlxReading) {
       auto [ambientTemp, objectTemp] = *mlxReading;
-      heatLamp.update(objectTemp);
+      // heatLamp.update(objectTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
                            ambientTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
@@ -113,7 +110,8 @@ void loop() {
     }
   }
 
-  // Publish states every 3 seconds - Seems stable compared to this in 1s loop
+  // Publish states every 3 seconds - Seems stable compared to this in 1s
+  // loop
   if (now - lastPublishedStateUpdate >= 3000) {
     firebaseApp.publishReportedStates();
     lastPublishedStateUpdate = now;
@@ -121,11 +119,11 @@ void loop() {
 
   if (now - lastSlowUpdate >= 5000) {
     lastSlowUpdate = now;
-    auto reading = dht11Sensor.readData();
+    auto reading = aht20Sensor.readData();
     if (reading) {
       auto [temperatureF, humidity] = *reading;
-      firebaseApp.setValue("sensors/DHT11/reported/temperature", temperatureF);
-      firebaseApp.setValue("sensors/DHT11/reported/humidity", humidity);
+      firebaseApp.setValue("sensors/AHT20/reported/temperature", temperatureF);
+      firebaseApp.setValue("sensors/AHT20/reported/humidity", humidity);
     } else {
       Serial.println("Failed to read sensor");
     }
