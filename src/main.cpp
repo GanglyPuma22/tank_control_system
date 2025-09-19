@@ -38,23 +38,44 @@ HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
-// TODO Try to see if we get a few more fps by using a seperate queue to send
-// images vs take to maximize camera throughput.
-
 // Camera frame rate for streaming
-constexpr int8_t framesPerSecond = 1;
+constexpr int8_t framesPerSecond = 5;
 // Task priority for camera capture task
 constexpr int8_t cameraTaskPriority = 3;
 uint8_t camPins[6] = {5, 4,       7,
                       6, SDA_PIN, SCL_PIN}; // CS, SCK, MISO, MOSI, SDA, SCL
+
+// This camera device instance is used only to initialize the camera and set
+// firebase state with published reported states.
+// Camera streaming is handled in camera_board_main.cpp uploaded
+// to the camera board
 CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
                     framesPerSecond, cameraTaskPriority);
+struct_message cameraBoardData;
+// callback when data is sent
+void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  bool success = (status == ESP_NOW_SEND_SUCCESS);
+  Serial.println(success ? "Delivery Success" : "Delivery Fail");
+  if (success) {
+    if (cameraBoardData.camera_action == 1) {
+      Serial.println("Camera turn on command sent successfully");
+      camera.setState(true); // We dont want to actually turn on the camera here
+    } else if (cameraBoardData.camera_action == 0) {
+      Serial.println("Camera turn off command sent successfully");
+      camera.setState(false);
+    }
+  } else {
+    Serial.println("Failed to send camera command");
+    // TODO Have error code for firebase
+  }
+}
 
 void setup() {
   Serial.begin(115200);
   // Enable for detailed debug output (for when the gremlins strike)
-  Serial.setDebugOutput(true);
-  esp_log_level_set("*", ESP_LOG_VERBOSE);
+  // Serial.setDebugOutput(true);
+  // esp_log_level_set("*", ESP_LOG_VERBOSE);
   Serial.println("Sensors and devices initializing...");
   // TODO Check emmissivity setting and tune it with input here
   mlxSensor.begin();
@@ -62,7 +83,9 @@ void setup() {
   heatLamp.begin();
   roomLight.begin();
   camera.begin();
-  WiFiUtil::connectAndSyncTime();
+  WiFiUtil::connectAndSyncTime(true);
+  WiFiUtil::setupEspNow(false, nullptr,
+                        onDataSent); // This file is uploaded to the main board
 
   // Start firebase app with a stream path to listen for commands
   firebaseApp.begin("/devices");
@@ -104,7 +127,7 @@ void loop() {
     auto mlxReading = mlxSensor.readData();
     if (mlxReading) {
       auto [objectTemp, ambientTemp] = *mlxReading;
-      // heatLamp.update(objectTemp);
+      heatLamp.update(objectTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
                            ambientTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
@@ -114,8 +137,7 @@ void loop() {
     }
   }
 
-  // Publish states every 3 seconds - Seems stable compared to this in 1s
-  // loop
+  // Publish states every 3 seconds - Seems stable compared to this in 1s loop
   if (now - lastPublishedStateUpdate >= 3000) {
     firebaseApp.publishReportedStates();
     lastPublishedStateUpdate = now;

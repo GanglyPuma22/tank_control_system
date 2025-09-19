@@ -154,8 +154,12 @@ void CameraDevice::startStreamTaskAsync() {
     return;
   }
   Serial.println("Starting async stream task 🎥");
-  // Use priority 16 for camera task - max priority is configMAX_PRIORITIES, 18
-  // and above is usually system critical tasks
+  // TODO This is not best way of using FreeRTOS tasks but works for now, should
+  // create in main loop
+  // and use vTaskStartScheduler() to start all tasks -> This stream task should
+  // be blocked until user sends devices command. Use priority 16 for camera
+  // task - max priority is configMAX_PRIORITIES, 18 and above is usually system
+  // critical tasks
   xTaskCreate(
       [](void *params) {
         static_cast<CameraDevice *>(params)->handleStreamTaskAsync(params);
