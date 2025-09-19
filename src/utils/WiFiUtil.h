@@ -2,7 +2,18 @@
 #include "../config/Credentials.h" // Put WIFI_SSID and WIFI_PASSWORD here (git-ignored)
 #include <ArduinoOTA.h>
 #include <WiFi.h>
+#include <esp_now.h>
 #include <time.h>
+
+// Structure example to send data
+// Must match the receiver structure
+typedef struct struct_message {
+  char message[32];
+  int camera_action;
+} struct_message;
+
+// Create a struct_message called myData
+struct_message myData;
 
 namespace WiFiUtil {
 
@@ -11,6 +22,31 @@ constexpr const char *ntpServer = "pool.ntp.org";
 
 // Pacific Time with automatic DST rules
 constexpr const char *tzInfo = "PST8PDT,M3.2.0/2,M11.1.0/2";
+
+// Define callback function types
+using SendCallback = void (*)(const uint8_t *, esp_now_send_status_t);
+using RecvCallback = void (*)(const uint8_t *, const uint8_t *, int);
+
+esp_now_peer_info_t peerInfo;
+
+// callback when data is sent
+void defaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success"
+                                                : "Delivery Fail");
+}
+
+// callback function that will be executed when data is received
+void defaultOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
+                       int len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  Serial.print("Message: ");
+  Serial.println(myData.message);
+  Serial.print("Camera Action: ");
+  Serial.println(myData.camera_action);
+}
 
 inline void setupOTA() {
   // OTA setup
@@ -37,8 +73,33 @@ inline void setupOTA() {
   Serial.println("OTA ready. IP address: " + WiFi.localIP().toString());
 }
 
+inline void setupEspNow(bool isCameraBoard = false,
+                        RecvCallback recvCb = nullptr,
+                        SendCallback sendCb = nullptr) {
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  if (isCameraBoard) {
+    esp_now_register_recv_cb(recvCb ? recvCb : defaultOnDataRecv);
+    memcpy(peerInfo.peer_addr, MAIN_BOARD_MAC_ADDRESS, 6);
+  } else {
+    esp_now_register_send_cb(sendCb ? sendCb : defaultOnDataSent);
+    memcpy(peerInfo.peer_addr, CAMERA_BOARD_MAC_ADDRESS, 6);
+  }
+
+  peerInfo.channel = 0; // pick a channel
+  peerInfo.encrypt = false;
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer");
+    return;
+  }
+}
+
 // ----- CONNECT + OTA + NTP SYNC -----
-inline void connectAndSyncTime() {
+inline void connectAndSyncTime(bool shouldSetupOTA = false) {
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSID);
 
@@ -62,7 +123,9 @@ inline void connectAndSyncTime() {
   Serial.println(WiFi.macAddress());
 
   // Setup OTA - for wireless updates
-  setupOTA();
+  if (shouldSetupOTA) {
+    setupOTA();
+  }
 
   // Set timezone and start NTP sync
   configTzTime(tzInfo, ntpServer);
