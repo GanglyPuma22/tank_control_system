@@ -26,7 +26,6 @@ constexpr const char *tzInfo = "PST8PDT,M3.2.0/2,M11.1.0/2";
 // Define callback function types
 using SendCallback = void (*)(const uint8_t *, esp_now_send_status_t);
 using RecvCallback = void (*)(const uint8_t *, const uint8_t *, int);
-
 esp_now_peer_info_t peerInfo;
 
 // callback when data is sent
@@ -81,6 +80,9 @@ inline void setupEspNow(bool isCameraBoard = false,
     Serial.println("Error initializing ESP-NOW");
     return;
   }
+  // Dummy values to be updated by user
+  uint8_t MAIN_BOARD_MAC_ADDRESS[6] = {0x70, 0xB8, 0xF6, 0x5D, 0x94, 0xB4};
+  uint8_t CAMERA_BOARD_MAC_ADDRESS[6] = {0x84, 0xF7, 0x03, 0xB2, 0x4B, 0x0C};
 
   if (isCameraBoard) {
     esp_now_register_recv_cb(recvCb ? recvCb : defaultOnDataRecv);

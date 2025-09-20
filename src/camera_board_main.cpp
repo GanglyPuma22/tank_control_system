@@ -1,7 +1,6 @@
 #include "devices/CameraDevice.h"
 #include "esp_log.h"
 #include <Arduino.h>
-#include <config/Credentials.h>
 #include <esp_now.h>
 #include <utils/WiFiUtil.h>
 
@@ -56,10 +55,16 @@ void setup() {
   Serial.println("Initialization complete.!");
 }
 
+static unsigned long lastPrint = 0;
+
 void loop() {
 
   // Handle OTA updates
   ArduinoOTA.handle();
   // Maintain WiFi connection
   WiFiUtil::maintain();
+  if (millis() - lastPrint >= 1000) {
+    Serial.println("I'm alive");
+    lastPrint = millis();
+  }
 }
