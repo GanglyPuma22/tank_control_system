@@ -14,8 +14,7 @@ public:
 
   void begin() override {
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, HIGH); // OFF initially
-    this->setState(false);
+    turnOff(); // OFF initially
   }
 
   void update() override {
@@ -35,12 +34,12 @@ public:
   }
 
   void turnOn() override {
-    digitalWrite(pin, LOW); // Turn on the relay
+    digitalWrite(pin, HIGH); // Turn on the relay
     this->setState(true);
   }
 
   void turnOff() override {
-    digitalWrite(pin, HIGH); // Turn off the relay
+    digitalWrite(pin, LOW); // Turn off the relay
     this->setState(false);
   }
 

@@ -100,7 +100,7 @@ void loop() {
     // Read sensors and update heat lamp state
     auto mlxReading = mlxSensor.readData();
     if (mlxReading) {
-      auto [ambientTemp, objectTemp] = *mlxReading;
+      auto [objectTemp, ambientTemp] = *mlxReading;
       // heatLamp.update(objectTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
                            ambientTemp);

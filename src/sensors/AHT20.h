@@ -9,10 +9,10 @@ public:
   void begin() {
     if (!aht.begin()) {
       Serial.println("Could not find AHT20? Check wiring");
-      while (1)
-        delay(10);
+    } else {
+
+      Serial.println("AHT20 found");
     }
-    Serial.println("AHT20 found");
   }
 
   std::optional<std::tuple<float, float>> readData() override {

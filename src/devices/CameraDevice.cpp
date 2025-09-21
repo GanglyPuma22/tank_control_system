@@ -26,23 +26,19 @@ void CameraDevice::begin() {
   camera.write_reg(0x07, 0x00);
   delay(100);
 
-  while (1) {
-    // Check if the ArduCAM SPI bus is OK
-    camera.write_reg(ARDUCHIP_TEST1, 0x55);
-    uint8_t temp = camera.read_reg(ARDUCHIP_TEST1);
-    if (temp != 0x55) {
-      Serial.println(F("ACK CMD SPI interface Error! END"));
-      delay(1000);
-      continue;
-    } else {
-      Serial.println(F("ACK CMD SPI interface OK. END"));
-      break;
-    }
+  // Check if the ArduCAM SPI bus is OK
+  camera.write_reg(ARDUCHIP_TEST1, 0x55);
+  uint8_t temp = camera.read_reg(ARDUCHIP_TEST1);
+  if (temp != 0x55) {
+    Serial.println(F("ACK CMD SPI interface Error! END"));
+    delay(1000);
+  } else {
+    Serial.println(F("ACK CMD SPI interface OK. END"));
   }
+
   camera.CS_HIGH();
   camera.set_format(JPEG);
 
-  // TODO Add more of the checks from arducam example for camera safety
   Wire.beginTransmission(0x30); // OV2640 default
   if (Wire.endTransmission() != 0) {
     Serial.println("ERROR: Camera I2C not found. Check SDA/SCL wiring.");

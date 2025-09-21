@@ -11,8 +11,7 @@ public:
 
   void begin() override {
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, HIGH); // OFF initially
-    this->setState(true);
+    turnOff(); // OFF initially
   }
 
   void update() override {
@@ -32,12 +31,12 @@ public:
   }
 
   void turnOn() override {
-    digitalWrite(pin, LOW);
+    digitalWrite(pin, HIGH);
     this->setState(true);
   }
 
   void turnOff() override {
-    digitalWrite(pin, HIGH);
+    digitalWrite(pin, LOW);
     this->setState(false);
   }
 

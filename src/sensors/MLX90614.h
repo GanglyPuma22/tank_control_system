@@ -15,6 +15,7 @@ public:
     Serial.println(mlx.readEmissivity());
   }
 
+  // Returns object temp then ambient temp
   std::optional<std::tuple<float, float>> readData() override {
     float temp = mlx.readObjectTempF();
     float amb = mlx.readAmbientTempF();
