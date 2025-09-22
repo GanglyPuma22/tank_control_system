@@ -56,6 +56,7 @@ void setup() {
   Serial.setDebugOutput(true);
   esp_log_level_set("*", ESP_LOG_VERBOSE);
   Serial.println("Sensors and devices initializing...");
+  // TODO Check emmissivity setting and tune it with input here
   mlxSensor.begin();
   aht20Sensor.begin();
   heatLamp.begin();
@@ -79,6 +80,10 @@ void loop() {
 
   firebaseApp.loop(); // Process Firebase app tasks
 
+  // Allow time to be accessed in the rest of the loop
+  struct tm timeInfo;
+  char timeBuffer[20];
+
   // Run the rest of the period tasks every 1 second
   if (now - lastDeviceLoopUpdate >= 1000) {
     lastDeviceLoopUpdate = now;
@@ -87,8 +92,6 @@ void loop() {
     roomLight.update();
 
     // Read time from NTP
-    struct tm timeInfo;
-    char timeBuffer[20];
     if (WiFiUtil::getLocalTimeWithDST(timeInfo)) {
       strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
     }
@@ -105,6 +108,7 @@ void loop() {
       firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
                            ambientTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
+      firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
     } else {
       Serial.println("Failed to read MLX sensor");
     }
@@ -124,6 +128,8 @@ void loop() {
       auto [temperatureF, humidity] = *reading;
       firebaseApp.setValue("sensors/AHT20/reported/temperature", temperatureF);
       firebaseApp.setValue("sensors/AHT20/reported/humidity", humidity);
+      firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
+
     } else {
       Serial.println("Failed to read sensor");
     }
