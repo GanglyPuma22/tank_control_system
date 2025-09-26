@@ -19,8 +19,6 @@ FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // If you are using a different board, please adjust the pin numbers
 // accordingly.
 //***** */
-#define SDA_PIN 8
-#define SCL_PIN 9
 
 // Pin definitions
 constexpr uint8_t HEAT_LAMP_PIN = 0; // Pin for heat lamp relay
@@ -38,31 +36,24 @@ HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
-// Camera frame rate for streaming
-constexpr int8_t framesPerSecond = 5;
-// Task priority for camera capture task
-constexpr int8_t cameraTaskPriority = 3;
-uint8_t camPins[6] = {5, 4,       7,
-                      6, SDA_PIN, SCL_PIN}; // CS, SCK, MISO, MOSI, SDA, SCL
-
 // This camera device instance is used only to initialize the camera and set
 // firebase state with published reported states.
 // Camera streaming is handled in camera_board_main.cpp uploaded
 // to the camera board
-CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
-                    framesPerSecond, cameraTaskPriority);
+CameraDevice camera("camera", MAIN_BOARD_MAC_ADDRESS);
+
 struct_message cameraBoardData;
-// callback when data is sent
-void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+// callback that makes sure firebase state is synced after data is sent
+// successfully to start/stop streaming camera board
+void onDataSentToCameraBoard(const uint8_t *mac_addr,
+                             esp_now_send_status_t status) {
   Serial.print("\r\nLast Packet Send Status:\t");
   bool success = (status == ESP_NOW_SEND_SUCCESS);
   Serial.println(success ? "Delivery Success" : "Delivery Fail");
   if (success) {
     if (cameraBoardData.camera_action == 1) {
-      Serial.println("Camera turn on command sent successfully");
       camera.setState(true); // We dont want to actually turn on the camera here
     } else if (cameraBoardData.camera_action == 0) {
-      Serial.println("Camera turn off command sent successfully");
       camera.setState(false);
     }
   } else {
@@ -82,10 +73,10 @@ void setup() {
   aht20Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
-  camera.begin();
   WiFiUtil::connectAndSyncTime(true);
-  WiFiUtil::setupEspNow(false, nullptr,
-                        onDataSent); // This file is uploaded to the main board
+  WiFiUtil::setupEspNow(
+      false, nullptr,
+      onDataSentToCameraBoard); // This file is uploaded to the main board
 
   // Start firebase app with a stream path to listen for commands
   firebaseApp.begin("/devices");
