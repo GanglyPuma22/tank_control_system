@@ -1,30 +1,28 @@
-#include "devices/CameraDevice.h"
+#include "esp_camera.h"
 #include "esp_log.h"
 #include <Arduino.h>
+#include <WiFiUdp.h>
 #include <esp_now.h>
 #include <utils/WiFiUtil.h>
 
 //**************
-// This implentation uses the M5Stamp C3 board with the Arduino framework.
-// Certain pins selections assume defaults for the M5Stamp C3 board.
-// If you are using a different board, please adjust the pin numbers
-// accordingly.
+// This implentation uses the esp32-cam dev board with the espressif +
+// Arduino framework. Certain pins selections assume defaults for the esp32-cam
+// dev board. If you are using a different board, please adjust the pin numbers
+// and use of camera accordingly.
 //***** */
-#define SDA_PIN 8
-#define SCL_PIN 9
+constexpr int TARGET_FPS = 5; // Adjust this value to change FPS
+constexpr unsigned long FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+const size_t CHUNK_SIZE = 1024; // Size of each UDP packet chunk
 
-// Camera frame rate for streaming
-constexpr int8_t framesPerSecond = 5;
-// Task priority for camera capture task
-constexpr int8_t cameraTaskPriority = 3;
-uint8_t camPins[6] = {5, 4,       7,
-                      6, SDA_PIN, SCL_PIN}; // CS, SCK, MISO, MOSI, SDA, SCL
-CameraDevice camera("camera", camPins, CameraDevice::Resolution::QVGA,
-                    framesPerSecond, cameraTaskPriority);
+WiFiUDP udp;
+unsigned long lastFrameTime = 0; // Add this variable to track timing
+bool shouldBeStreaming = false;
 
 // callback function that will be executed when data is received from main board
 struct_message mainBoardData;
-void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
+void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
+                           int len) {
   memcpy(&mainBoardData, incomingData, sizeof(mainBoardData));
   Serial.print("Bytes received: ");
   Serial.println(len);
@@ -35,27 +33,77 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 
   if (mainBoardData.camera_action == 1) {
     // Turn on camera
-    camera.turnOn();
+    shouldBeStreaming = true;
   } else if (mainBoardData.camera_action == 0) {
     // Turn off camera
-    camera.turnOff();
+    shouldBeStreaming = false;
   }
+
+  // TODO process message for setting changes
 }
 
+void captureAndTransmitFrame() {
+  // capture a frame
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("Frame buffer could not be acquired");
+  }
+
+  size_t remaining = fb->len;
+  while (remaining) {
+    size_t toRead = min(CHUNK_SIZE, remaining);
+    udp.beginPacket(VIDEO_WEB_SERVER_IP, VIDEO_WEB_SERVER_PORT);
+    udp.write(fb->buf + (fb->len - remaining), toRead);
+    udp.endPacket();
+    remaining -= toRead;
+    delay(1); // give TCP stack a breather
+  }
+  // return the frame buffer back to be reused
+  esp_camera_fb_return(fb);
+}
 void setup() {
   Serial.begin(115200);
   // Enable for detailed debug output (for when the gremlins strike)
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
-  camera.begin();
   // True to setup OTA updates, false to skip
   WiFiUtil::connectAndSyncTime(true);
-  WiFiUtil::setupEspNow(true, onDataRecv);
+  WiFiUtil::setupEspNow(true, cameraBoardOnDataRecv);
+
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = 5;
+  config.pin_d1 = 18;
+  config.pin_d2 = 19;
+  config.pin_d3 = 21;
+  config.pin_d4 = 36;
+  config.pin_d5 = 39;
+  config.pin_d6 = 34;
+  config.pin_d7 = 35;
+  config.pin_xclk = 0;
+  config.pin_pclk = 22;
+  config.pin_vsync = 25;
+  config.pin_href = 23;
+  config.pin_sscb_sda = 26;
+  config.pin_sscb_scl = 27;
+  config.pin_pwdn = 32;
+  config.pin_reset = -1;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG;
+  config.frame_size = FRAMESIZE_QVGA;
+  config.jpeg_quality = 15;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.fb_count = 2;
+
+  if (esp_camera_init(&config) != ESP_OK) {
+    Serial.println("Camera init failed");
+    return;
+  }
+  Serial.println("Camera initialized successfully");
   delay(1000); // Allow time for devices to initialize
   Serial.println("Initialization complete.!");
 }
-
-static unsigned long lastPrint = 0;
 
 void loop() {
 
@@ -63,8 +111,17 @@ void loop() {
   ArduinoOTA.handle();
   // Maintain WiFi connection
   WiFiUtil::maintain();
-  if (millis() - lastPrint >= 1000) {
-    Serial.println("I'm alive");
-    lastPrint = millis();
+
+  if (!shouldBeStreaming) {
+    return; // Not streaming, skip the rest of the loop
   }
+
+  // Check if enough time has passed since last frame
+  unsigned long currentTime = millis();
+  if (currentTime - lastFrameTime < FRAME_INTERVAL_MS) {
+    return; // Not time for next frame yet
+  }
+  lastFrameTime = currentTime;
+
+  captureAndTransmitFrame();
 }

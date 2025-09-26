@@ -1,23 +1,28 @@
 #pragma once
-#include "../config/Credentials.h" // Put WIFI_SSID and WIFI_PASSWORD here (git-ignored)
+#include "../config/Credentials.h"
+#include <Arduino.h> // For uint8_t and other Arduino types
 #include <ArduinoOTA.h>
 #include <WiFi.h>
 #include <esp_now.h>
-#include <time.h>
 
 // Structure example to send data
 // Must match the receiver structure
-typedef struct struct_message {
+struct struct_message {
   char message[32];
   int camera_action;
-} struct_message;
+};
 
-// Create a struct_message called myData
-struct_message myData;
+// Global variables
+extern struct_message myData;
 
 namespace WiFiUtil {
+extern esp_now_peer_info_t peerInfo;
 
-// NTP Server
+// ESP-NOW callback functions
+void defaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
+void defaultOnDataRecv(const uint8_t *mac_addr, const uint8_t *data,
+                       int data_len);
+} // namespace WiFiUtil
 constexpr const char *ntpServer = "pool.ntp.org";
 
 // Pacific Time with automatic DST rules
@@ -80,9 +85,6 @@ inline void setupEspNow(bool isCameraBoard = false,
     Serial.println("Error initializing ESP-NOW");
     return;
   }
-  // Dummy values to be updated by user
-  uint8_t MAIN_BOARD_MAC_ADDRESS[6] = {0x70, 0xB8, 0xF6, 0x5D, 0x94, 0xB4};
-  uint8_t CAMERA_BOARD_MAC_ADDRESS[6] = {0x84, 0xF7, 0x03, 0xB2, 0x4B, 0x0C};
 
   if (isCameraBoard) {
     esp_now_register_recv_cb(recvCb ? recvCb : defaultOnDataRecv);
@@ -161,5 +163,3 @@ inline bool getLocalTimeWithDST(struct tm &timeinfo) {
   }
   return true; // tm_isdst will be correct automatically
 }
-
-} // namespace WiFiUtil

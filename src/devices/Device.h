@@ -21,7 +21,7 @@ public:
   virtual void update() = 0; // called in main loop
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
-  // Functions to handle state syncing between webpage and esp32
+  // Functions to handle state syncing between webpage and esp32 using firebase
   virtual void applyState(JsonVariantConst desired) = 0;
   virtual void reportState(JsonDocument &doc) = 0;
 
