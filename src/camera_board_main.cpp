@@ -15,6 +15,7 @@ constexpr int TARGET_FPS = 5; // Adjust this value to change FPS
 constexpr unsigned long FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
 const size_t CHUNK_SIZE = 1024; // Size of each UDP packet chunk
 
+WiFiUtil wifi;
 WiFiUDP udp;
 unsigned long lastFrameTime = 0; // Add this variable to track timing
 bool shouldBeStreaming = false;
@@ -67,8 +68,8 @@ void setup() {
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
   // True to setup OTA updates, false to skip
-  WiFiUtil::connectAndSyncTime(true);
-  WiFiUtil::setupEspNow(true, cameraBoardOnDataRecv);
+  wifi.connectAndSyncTime(true);
+  wifi.setupEspNow(true, cameraBoardOnDataRecv);
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -85,8 +86,8 @@ void setup() {
   config.pin_pclk = 22;
   config.pin_vsync = 25;
   config.pin_href = 23;
-  config.pin_sscb_sda = 26;
-  config.pin_sscb_scl = 27;
+  config.pin_sccb_sda = 26; // Changed from pin_sscb_sda
+  config.pin_sccb_scl = 27; // Changed from pin_sscb_scl
   config.pin_pwdn = 32;
   config.pin_reset = -1;
   config.xclk_freq_hz = 20000000;
@@ -110,7 +111,7 @@ void loop() {
   // Handle OTA updates
   ArduinoOTA.handle();
   // Maintain WiFi connection
-  WiFiUtil::maintain();
+  wifi.maintain();
 
   if (!shouldBeStreaming) {
     return; // Not streaming, skip the rest of the loop

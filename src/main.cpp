@@ -8,7 +8,7 @@
 #include <sensors/MLX90614.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiUtil.h>
-
+// Credentials are coming from include in WifiUtil.h
 // Firebase setup using FirebaseClient class wrapper
 FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
                             FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
@@ -40,7 +40,7 @@ Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
 // firebase state with published reported states.
 // Camera streaming is handled in camera_board_main.cpp uploaded
 // to the camera board
-CameraDevice camera("camera", MAIN_BOARD_MAC_ADDRESS);
+CameraDevice camera("camera", CAMERA_BOARD_MAC_ADDRESS);
 
 struct_message cameraBoardData;
 // callback that makes sure firebase state is synced after data is sent
@@ -62,6 +62,8 @@ void onDataSentToCameraBoard(const uint8_t *mac_addr,
   }
 }
 
+WiFiUtil wifi;
+
 void setup() {
   Serial.begin(115200);
   // Enable for detailed debug output (for when the gremlins strike)
@@ -73,8 +75,8 @@ void setup() {
   aht20Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
-  WiFiUtil::connectAndSyncTime(true);
-  WiFiUtil::setupEspNow(
+  wifi.connectAndSyncTime(true);
+  wifi.setupEspNow(
       false, nullptr,
       onDataSentToCameraBoard); // This file is uploaded to the main board
 
@@ -101,12 +103,14 @@ void loop() {
   // Run the rest of the period tasks every 1 second
   if (now - lastDeviceLoopUpdate >= 1000) {
     lastDeviceLoopUpdate = now;
-    WiFiUtil::maintain(); // Keep Wi-Fi alive
+    wifi.maintain(); // Keep Wi-Fi alive
 
     roomLight.update();
 
     // Read time from NTP
-    if (WiFiUtil::getLocalTimeWithDST(timeInfo)) {
+    struct tm timeInfo;
+    char timeBuffer[20];
+    if (wifi.getLocalTimeWithDST(timeInfo)) {
       strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
     }
     firebaseApp.setValue("/status/time", timeBuffer);
