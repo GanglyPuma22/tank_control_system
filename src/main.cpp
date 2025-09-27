@@ -40,7 +40,7 @@ Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
 // firebase state with published reported states.
 // Camera streaming is handled in camera_board_main.cpp uploaded
 // to the camera board
-CameraDevice camera("camera", CAMERA_BOARD_MAC_ADDRESS);
+CameraDevice camera("camera");
 
 struct_message cameraBoardData;
 // callback that makes sure firebase state is synced after data is sent
