@@ -1,6 +1,8 @@
 #pragma once
+#include "../config/Credentials.h"
 #include "../utils/MessageTypes.h"
 #include "Device.h"
+
 #define sensor_t camera_sensor_t
 #include <esp_camera.h>
 #undef sensor_t
@@ -13,7 +15,7 @@
 
 class CameraDevice : public Device {
 public:
-  CameraDevice(const std::string &name, const uint8_t macAddress[6]);
+  CameraDevice(const std::string &name); //, const uint8_t macAddress[6]);
   void begin() override{};
   void update() override{};
   // Using override calls to start and stop streams
@@ -23,7 +25,7 @@ public:
   void applyState(JsonVariantConst desired) override;
 
 private:
-  uint8_t cameraBoardMacAddress[6];
+  // uint8_t cameraBoardMacAddress[6];
   // Define constant messages for on/off commands
   static const struct_message CAMERA_ON_MESSAGE;
   static const struct_message CAMERA_OFF_MESSAGE;

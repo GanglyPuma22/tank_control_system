@@ -1,8 +1,9 @@
 #include "CameraDevice.h"
 
-CameraDevice::CameraDevice(const std::string &name, const uint8_t macAddress[6])
+CameraDevice::CameraDevice(
+    const std::string &name) //, const uint8_t macAddress[6])
     : Device(name) {
-  memcpy(this->cameraBoardMacAddress, macAddress, 6);
+  // memcpy(this->cameraBoardMacAddress, macAddress, 6);
 }
 
 const struct_message CameraDevice::CAMERA_ON_MESSAGE = {
@@ -19,7 +20,7 @@ const struct_message CameraDevice::CAMERA_OFF_MESSAGE = {
 // camera state represents true state of camera board.
 void CameraDevice::turnOn() {
   esp_err_t result =
-      esp_now_send(this->cameraBoardMacAddress, (uint8_t *)&CAMERA_ON_MESSAGE,
+      esp_now_send(CAMERA_BOARD_MAC_ADDRESS, (uint8_t *)&CAMERA_ON_MESSAGE,
                    sizeof(CAMERA_ON_MESSAGE));
 
   if (result != ESP_OK) {
@@ -29,7 +30,7 @@ void CameraDevice::turnOn() {
 }
 void CameraDevice::turnOff() {
   esp_err_t result =
-      esp_now_send(this->cameraBoardMacAddress, (uint8_t *)&CAMERA_OFF_MESSAGE,
+      esp_now_send(CAMERA_BOARD_MAC_ADDRESS, (uint8_t *)&CAMERA_OFF_MESSAGE,
                    sizeof(CAMERA_OFF_MESSAGE));
 
   if (result != ESP_OK) {
