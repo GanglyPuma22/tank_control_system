@@ -1,6 +1,5 @@
 #pragma once
-
-#include "../utils/WiFiUtil.h" // Include WiFiUtil for struct_message definition
+#include "../utils/MessageTypes.h"
 #include "Device.h"
 #define sensor_t camera_sensor_t
 #include <esp_camera.h>
