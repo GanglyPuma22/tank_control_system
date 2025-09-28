@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <WiFiUdp.h>
 #include <esp_now.h>
-#include <utils/WiFiUtil.h>
+#include <utils/WiFiHelper.h>
 
 //**************
 // This implentation uses the esp32-cam dev board with the espressif +
@@ -15,7 +15,7 @@ constexpr int TARGET_FPS = 5; // Adjust this value to change FPS
 constexpr unsigned long FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
 const size_t CHUNK_SIZE = 1024; // Size of each UDP packet chunk
 
-WiFiUtil wifi;
+WiFiHelper wifi;
 WiFiUDP udp;
 unsigned long lastFrameTime = 0; // Add this variable to track timing
 bool shouldBeStreaming = false;

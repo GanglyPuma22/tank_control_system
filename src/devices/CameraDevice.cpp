@@ -19,30 +19,28 @@ const struct_message CameraDevice::CAMERA_OFF_MESSAGE = {
 // State will be set by onDataSent callback in main.cpp -> This guarantees
 // camera state represents true state of camera board.
 void CameraDevice::turnOn() {
-  esp_err_t result =
-      esp_now_send(CAMERA_BOARD_MAC_ADDRESS, (uint8_t *)&CAMERA_ON_MESSAGE,
-                   sizeof(CAMERA_ON_MESSAGE));
+  bool result = WiFiHelper::sendData(CAMERA_BOARD_MAC_ADDRESS,
+                                     (uint8_t *)&CAMERA_ON_MESSAGE);
 
-  if (result != ESP_OK) {
-    // TODO Document error state for publishing to firebase
+  if (!result) {
+    this->errorState = true;
     Serial.println("Error sending camera command");
   }
 }
 void CameraDevice::turnOff() {
-  esp_err_t result =
-      esp_now_send(CAMERA_BOARD_MAC_ADDRESS, (uint8_t *)&CAMERA_OFF_MESSAGE,
-                   sizeof(CAMERA_OFF_MESSAGE));
+  bool result = WiFiHelper::sendData(CAMERA_BOARD_MAC_ADDRESS,
+                                     (uint8_t *)&CAMERA_OFF_MESSAGE);
 
-  if (result != ESP_OK) {
-    // TODO Document error state for publishing to firebase
+  if (!result) {
+    this->errorState = true;
     Serial.println("Error sending camera command");
   }
 }
 
 void CameraDevice::applyState(JsonVariantConst desired) {
   if (desired["state"].is<JsonVariantConst>()) {
-    bool shouldBeOn = desired["state"].as<bool>();
-    if (shouldBeOn) {
+    this->shouldBeOnState = desired["state"].as<bool>();
+    if (this->shouldBeOnState) {
       turnOn();
     } else {
       turnOff();
@@ -52,4 +50,5 @@ void CameraDevice::applyState(JsonVariantConst desired) {
 
 void CameraDevice::reportState(JsonDocument &doc) {
   doc["state"] = this->isOn();
+  doc["error"] = this->hasError();
 }

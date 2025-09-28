@@ -7,7 +7,7 @@
 #include <sensors/AHT20.h>
 #include <sensors/MLX90614.h>
 #include <utils/TimeOfDay.h>
-#include <utils/WiFiUtil.h>
+#include <utils/WiFiHelper.h>
 // Credentials are coming from include in WifiUtil.h
 // Firebase setup using FirebaseClient class wrapper
 FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
@@ -36,24 +36,27 @@ HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
 
-// This camera device instance is used only to initialize the camera and set
-// firebase state with published reported states.
-// Camera streaming is handled in camera_board_main.cpp uploaded
-// to the camera board
+// This camera device instance is used for firebase state management
+// Camera streaming is handled in camera_board_main.cpp running on the
+// camera-board
 CameraDevice camera("camera");
 
-struct_message cameraBoardData;
 // callback that makes sure firebase state is synced after data is sent
-// successfully to start/stop streaming camera board
+// successfully to start/stop streaming camera board. This runs after esp-now
+// data is processed by camera-board
 void onDataSentToCameraBoard(const uint8_t *mac_addr,
                              esp_now_send_status_t status) {
   Serial.print("\r\nLast Packet Send Status:\t");
   bool success = (status == ESP_NOW_SEND_SUCCESS);
   Serial.println(success ? "Delivery Success" : "Delivery Fail");
+
   if (success) {
-    if (cameraBoardData.camera_action == 1) {
-      camera.setState(true); // We dont want to actually turn on the camera here
-    } else if (cameraBoardData.camera_action == 0) {
+    camera.setErrorState(false);
+    Serial.println("Setting camera state");
+    // We can now trust the command was received, so use desired state
+    if (camera.shouldBeOn()) {
+      camera.setState(true);
+    } else {
       camera.setState(false);
     }
   } else {
@@ -62,7 +65,7 @@ void onDataSentToCameraBoard(const uint8_t *mac_addr,
   }
 }
 
-WiFiUtil wifi;
+WiFiHelper wifi;
 
 void setup() {
   Serial.begin(115200);

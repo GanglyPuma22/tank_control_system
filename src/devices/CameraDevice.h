@@ -1,12 +1,13 @@
 #pragma once
 #include "../config/Credentials.h"
 #include "../utils/MessageTypes.h"
+#include "../utils/WiFiHelper.h"
 #include "Device.h"
 
+// Conflicting sensor_t definition between esp_camera and arduinojson
 #define sensor_t camera_sensor_t
 #include <esp_camera.h>
 #undef sensor_t
-#include <esp_now.h>
 
 // This class encompases the management of the camera device from a state and
 // communication perspective The actual camera board will run a separate
@@ -23,9 +24,15 @@ public:
   void turnOff() override;
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
+  bool shouldBeOn() { return shouldBeOnState; }
+  void setErrorState(bool state) { errorState = state; }
+  bool hasError() { return errorState; }
 
 private:
-  // uint8_t cameraBoardMacAddress[6];
+  // Used to track desired state from Firebase database
+  bool shouldBeOnState = false;
+  // Used to track if there was an error sending command to camera board
+  bool errorState = false;
   // Define constant messages for on/off commands
   static const struct_message CAMERA_ON_MESSAGE;
   static const struct_message CAMERA_OFF_MESSAGE;

@@ -1,25 +1,86 @@
-#include "WiFiUtil.h"
+#include "WiFiHelper.h"
 
 // Initialize static members
-struct_message WiFiUtil::myData;
+struct_message WiFiHelper::myData;
+unsigned long WiFiHelper::lastSendAttempt = 0;
+int WiFiHelper::currentRetryCount = 0;
+bool WiFiHelper::sendPending = false;
+const uint8_t *WiFiHelper::pendingMac = nullptr;
+const uint8_t *WiFiHelper::pendingData = nullptr;
 
-WiFiUtil::WiFiUtil() {}
+WiFiHelper::WiFiHelper() {}
 
-void WiFiUtil::defaultOnDataSent(const uint8_t *mac_addr,
-                                 esp_now_send_status_t status) {
+bool WiFiHelper::attemptSend(const uint8_t *mac, const uint8_t *data) {
+  esp_err_t result = esp_now_send(mac, data, sizeof(struct_message));
+  if (result == ESP_OK) {
+    resetSendState();
+    return true;
+  }
+  Serial.print("Send attempt failed with error: ");
+  Serial.println(result);
+  return false;
+}
+
+void WiFiHelper::resetSendState() {
+  sendPending = false;
+  currentRetryCount = 0;
+  pendingMac = nullptr;
+  pendingData = nullptr;
+}
+
+bool WiFiHelper::sendData(const uint8_t *mac, const uint8_t *data) {
+  unsigned long currentTime = millis();
+
+  // First attempt or retry after timeout
+  if (!sendPending) {
+    Serial.println("Attempting to send data... First attempt.");
+    if (attemptSend(mac, data)) {
+      return true;
+    }
+    // Setup for retry
+    sendPending = true;
+    currentRetryCount = 0;
+    lastSendAttempt = currentTime;
+    pendingMac = mac;
+    pendingData = data;
+    return false;
+  }
+
+  // Handle ongoing retry sequence
+  if (sendPending &&
+      (currentTime - lastSendAttempt >= ESP_NOW_RETRY_DELAY_MS)) {
+    if (currentRetryCount >= MAX_ESP_NOW_RETRIES) {
+      Serial.println("All retries failed");
+      resetSendState();
+      return false;
+    }
+
+    currentRetryCount++;
+    Serial.print("Retry attempt ");
+    Serial.println(currentRetryCount);
+
+    lastSendAttempt = currentTime;
+    return attemptSend(pendingMac, pendingData);
+  }
+
+  return false;
+}
+
+void WiFiHelper::defaultOnDataSent(const uint8_t *mac_addr,
+                                   esp_now_send_status_t status) {
   Serial.print("\r\nLast Packet Send Status: ");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success"
                                                 : "Delivery Fail");
 }
 
-void WiFiUtil::defaultOnDataRecv(const uint8_t *mac_addr, const uint8_t *data,
-                                 int data_len) {
+void WiFiHelper::defaultOnDataRecv(const uint8_t *mac_addr, const uint8_t *data,
+                                   int data_len) {
   memcpy(&myData, data, sizeof(myData));
   Serial.print("Bytes received: ");
   Serial.println(data_len);
 }
 
-void WiFiUtil::setupOTA() {
+void WiFiHelper::setupOTA() {
   ArduinoOTA.onStart([]() { Serial.println("OTA Update Start"); })
       .onEnd([]() { Serial.println("OTA Update End"); })
       .onProgress([](unsigned int progress, unsigned int total) {
@@ -43,8 +104,8 @@ void WiFiUtil::setupOTA() {
   Serial.println("OTA ready. IP address: " + WiFi.localIP().toString());
 }
 
-void WiFiUtil::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
-                           SendCallback sendCb) {
+void WiFiHelper::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
+                             SendCallback sendCb) {
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
@@ -58,7 +119,10 @@ void WiFiUtil::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
     memcpy(peerInfo.peer_addr, CAMERA_BOARD_MAC_ADDRESS, 6);
   }
 
-  peerInfo.channel = 0;
+  // Set the WiFi channel to match on both boards for reliable ESP-NOW
+  // communication. You can use WiFi.channel() after connecting to WiFi, or
+  // hardcode a channel (1-13). Example: peerInfo.channel = WiFi.channel(); //
+  peerInfo.channel = WiFi.channel();
   peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
@@ -67,7 +131,7 @@ void WiFiUtil::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
   Serial.println("ESP-NOW initialized");
 }
 
-void WiFiUtil::connectAndSyncTime(bool shouldSetupOTA) {
+void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA) {
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSID);
 
@@ -76,14 +140,14 @@ void WiFiUtil::connectAndSyncTime(bool shouldSetupOTA) {
 
   uint8_t attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(WIFI_RETRY_DELAY_MS);
     Serial.print(".");
-    if (++attempt > 60) {
+    if (++attempt > MAX_WIFI_RETRIES) {
       Serial.println("\nWiFi connection failed!");
       return;
     }
   }
-
+  delay(1000); // Wait a moment for connection to stabilize
   Serial.println("\nWiFi connected!");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
@@ -106,7 +170,7 @@ void WiFiUtil::connectAndSyncTime(bool shouldSetupOTA) {
   Serial.println(asctime(&timeinfo));
 }
 
-void WiFiUtil::maintain() {
+void WiFiHelper::maintain() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi lost, reconnecting...");
     WiFi.disconnect();
@@ -115,7 +179,7 @@ void WiFiUtil::maintain() {
   ArduinoOTA.handle();
 }
 
-bool WiFiUtil::getLocalTimeWithDST(struct tm &timeinfo) {
+bool WiFiHelper::getLocalTimeWithDST(struct tm &timeinfo) {
   if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time");
     return false;
