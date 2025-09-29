@@ -2,69 +2,8 @@
 
 // Initialize static members
 struct_message WiFiHelper::myData;
-unsigned long WiFiHelper::lastSendAttempt = 0;
-int WiFiHelper::currentRetryCount = 0;
-bool WiFiHelper::sendPending = false;
-const uint8_t *WiFiHelper::pendingMac = nullptr;
-const uint8_t *WiFiHelper::pendingData = nullptr;
 
 WiFiHelper::WiFiHelper() {}
-
-bool WiFiHelper::attemptSend(const uint8_t *mac, const uint8_t *data) {
-  esp_err_t result = esp_now_send(mac, data, sizeof(struct_message));
-  if (result == ESP_OK) {
-    resetSendState();
-    return true;
-  }
-  Serial.print("Send attempt failed with error: ");
-  Serial.println(result);
-  return false;
-}
-
-void WiFiHelper::resetSendState() {
-  sendPending = false;
-  currentRetryCount = 0;
-  pendingMac = nullptr;
-  pendingData = nullptr;
-}
-
-bool WiFiHelper::sendData(const uint8_t *mac, const uint8_t *data) {
-  unsigned long currentTime = millis();
-
-  // First attempt or retry after timeout
-  if (!sendPending) {
-    Serial.println("Attempting to send data... First attempt.");
-    if (attemptSend(mac, data)) {
-      return true;
-    }
-    // Setup for retry
-    sendPending = true;
-    currentRetryCount = 0;
-    lastSendAttempt = currentTime;
-    pendingMac = mac;
-    pendingData = data;
-    return false;
-  }
-
-  // Handle ongoing retry sequence
-  if (sendPending &&
-      (currentTime - lastSendAttempt >= ESP_NOW_RETRY_DELAY_MS)) {
-    if (currentRetryCount >= MAX_ESP_NOW_RETRIES) {
-      Serial.println("All retries failed");
-      resetSendState();
-      return false;
-    }
-
-    currentRetryCount++;
-    Serial.print("Retry attempt ");
-    Serial.println(currentRetryCount);
-
-    lastSendAttempt = currentTime;
-    return attemptSend(pendingMac, pendingData);
-  }
-
-  return false;
-}
 
 void WiFiHelper::defaultOnDataSent(const uint8_t *mac_addr,
                                    esp_now_send_status_t status) {

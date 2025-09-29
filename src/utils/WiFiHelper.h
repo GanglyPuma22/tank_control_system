@@ -14,9 +14,6 @@ using RecvCallback = void (*)(const uint8_t *, const uint8_t *, int);
 class WiFiHelper {
 public:
   WiFiHelper();
-  static bool attemptSend(const uint8_t *mac, const uint8_t *data);
-  static void resetSendState();
-  static bool sendData(const uint8_t *mac, const uint8_t *data);
 
   static void defaultOnDataSent(const uint8_t *mac_addr,
                                 esp_now_send_status_t status);
@@ -33,15 +30,6 @@ public:
   esp_now_peer_info_t peerInfo;
 
 private:
-  // State tracking for esp-now send retries
-  static unsigned long lastSendAttempt;
-  static int currentRetryCount;
-  static bool sendPending;
-  static const uint8_t *pendingMac;
-  static const uint8_t *pendingData;
-
-  static constexpr int ESP_NOW_RETRY_DELAY_MS = 300;
-  static constexpr int MAX_ESP_NOW_RETRIES = 10;
   static constexpr int WIFI_RETRY_DELAY_MS = 250;
   static constexpr int MAX_WIFI_RETRIES = 30;
   static constexpr const char *ntpServer = "pool.ntp.org";

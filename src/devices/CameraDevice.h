@@ -1,8 +1,8 @@
 #pragma once
 #include "../config/Credentials.h"
 #include "../utils/MessageTypes.h"
-#include "../utils/WiFiHelper.h"
 #include "Device.h"
+#include <esp_now.h>
 
 // Conflicting sensor_t definition between esp_camera and arduinojson
 #define sensor_t camera_sensor_t
@@ -18,7 +18,7 @@ class CameraDevice : public Device {
 public:
   CameraDevice(const std::string &name); //, const uint8_t macAddress[6]);
   void begin() override{};
-  void update() override{};
+  void update() override;
   // Using override calls to start and stop streams
   void turnOn() override;
   void turnOff() override;
@@ -36,4 +36,11 @@ private:
   // Define constant messages for on/off commands
   static const struct_message CAMERA_ON_MESSAGE;
   static const struct_message CAMERA_OFF_MESSAGE;
+
+  // ESP-NOW retry variables
+  bool currentlySendingEspNowCommand = false;
+  int currentRetryCount = 0;
+  static constexpr int MAX_ESP_NOW_RETRIES = 5;
+
+  bool attemptSend(const struct_message &message);
 };

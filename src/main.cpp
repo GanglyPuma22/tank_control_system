@@ -98,6 +98,7 @@ void loop() {
   unsigned long now = millis();
 
   firebaseApp.loop(); // Process Firebase app tasks
+  camera.update();    // Process camera state changes if any
 
   // Allow time to be accessed in the rest of the loop
   struct tm timeInfo;
