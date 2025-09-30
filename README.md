@@ -35,14 +35,22 @@ The Tank Control System is a versatile, extensible platform designed to manage a
 1. **🔌 Hardware:**
    - ESP32-based controller (e.g., M5Stamp C3)
    - Supported sensors (DHT11, AHT20, MLX90614 etc.)
-   - Camera module (OV2640 or similar)
+   - **ESP32-CAM board** (separate board required due to signal issues with long camera cables)
    - Relays for external device control (e.g. turn lamps on/off)
-2. **💻 Software:**
+2. **📷 ESP32-CAM Setup:**
+   - Use a separate ESP32-CAM board for camera functionality
+   - Board-to-board communication via ESP-NOW protocol
+   - Basic camera control: `camera_action=0` (stop streaming), `camera_action=1` (start streaming), `camera_action=2` (update FPS)
+   - Check board pinout when adapting to other ESP32-based boards
+   - Full message protocol details available in `MessageTypes.h`
+3. **💻 Software:**
    - PlatformIO/Arduino framework
    - Configure Wi-Fi and Firebase credentials in `src/config/Credentials.h`
-   - Build and upload the firmware
+   - Build and upload firmware to both boards:
+     - Main board: `pio run -e main-board -t upload`
+     - Camera board: `pio run -e camera-board -t upload`
    - Firebase RealtimeDatabase needed for LAN control and stream viewing, for WAN you need to create a Firebase Web App. I've done everything on the free tier!
-3. **🌍 Web Interface:**
+4. **🌍 Web Interface:**
    - For LAN: Instruction coming soon!
    - For WAN: Instruction coming soon!
 
