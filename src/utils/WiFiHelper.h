@@ -26,7 +26,7 @@ public:
   void maintain();
   bool getLocalTimeWithDST(struct tm &timeinfo);
 
-  static struct_message myData;
+  static camera_message receivedData;
   esp_now_peer_info_t peerInfo;
 
 private:

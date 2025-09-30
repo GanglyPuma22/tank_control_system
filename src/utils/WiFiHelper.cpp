@@ -1,7 +1,7 @@
 #include "WiFiHelper.h"
 
 // Initialize static members
-struct_message WiFiHelper::myData;
+camera_message WiFiHelper::receivedData;
 
 WiFiHelper::WiFiHelper() {}
 
@@ -14,7 +14,7 @@ void WiFiHelper::defaultOnDataSent(const uint8_t *mac_addr,
 
 void WiFiHelper::defaultOnDataRecv(const uint8_t *mac_addr, const uint8_t *data,
                                    int data_len) {
-  memcpy(&myData, data, sizeof(myData));
+  memcpy(&receivedData, data, sizeof(receivedData));
   Serial.print("Bytes received: ");
   Serial.println(data_len);
 }

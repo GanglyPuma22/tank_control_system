@@ -27,20 +27,24 @@ public:
   bool shouldBeOn() { return shouldBeOnState; }
   void setErrorState(bool state) { errorState = state; }
   bool hasError() { return errorState; }
+  int getFps() { return fps; }
+  void setFps(int newFps) { fps = newFps; }
+
+  void setCameraMessage(String message, int camera_action, int fps);
 
 private:
   // Used to track desired state from Firebase database
   bool shouldBeOnState = false;
   // Used to track if there was an error sending command to camera board
   bool errorState = false;
-  // Define constant messages for on/off commands
-  static const struct_message CAMERA_ON_MESSAGE;
-  static const struct_message CAMERA_OFF_MESSAGE;
+  int fps = 5;
+  // Initialize memory to send all commands for camera control
+  camera_message cameraMessage;
 
   // ESP-NOW retry variables
   bool currentlySendingEspNowCommand = false;
   int currentRetryCount = 0;
   static constexpr int MAX_ESP_NOW_RETRIES = 5;
 
-  bool attemptSend(const struct_message &message);
+  bool attemptSend(const camera_message &message);
 };

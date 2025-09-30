@@ -11,8 +11,9 @@
 // dev board. If you are using a different board, please adjust the pin numbers
 // and use of camera accordingly.
 //***** */
-constexpr int TARGET_FPS = 5; // Adjust this value to change FPS
-constexpr unsigned long FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+// TODO Make sure we can OTA update before building box
+int target_fps = 5; // Adjust this value to change FPS
+unsigned long frame_interval_ms = 1000 / target_fps;
 const size_t CHUNK_SIZE = 1024; // Size of each UDP packet chunk
 
 WiFiHelper wifi;
@@ -21,7 +22,7 @@ unsigned long lastFrameTime = 0; // Add this variable to track timing
 bool shouldBeStreaming = false;
 
 // callback function that will be executed when data is received from main board
-struct_message mainBoardData;
+camera_message mainBoardData;
 void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
                            int len) {
   memcpy(&mainBoardData, incomingData, sizeof(mainBoardData));
@@ -31,6 +32,8 @@ void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
   Serial.println(mainBoardData.message);
   Serial.print("Camera Action: ");
   Serial.println(mainBoardData.camera_action);
+  Serial.print("FPS: ");
+  Serial.println(mainBoardData.fps);
 
   if (mainBoardData.camera_action == 1) {
     // Turn on camera
@@ -39,7 +42,10 @@ void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
     // Turn off camera
     shouldBeStreaming = false;
   }
-
+  if (mainBoardData.fps > 0 && mainBoardData.fps < 30) {
+    target_fps = mainBoardData.fps;
+    frame_interval_ms = 1000 / target_fps;
+  }
   // TODO process message for setting changes
 }
 
@@ -119,7 +125,7 @@ void loop() {
 
   // Check if enough time has passed since last frame
   unsigned long currentTime = millis();
-  if (currentTime - lastFrameTime < FRAME_INTERVAL_MS) {
+  if (currentTime - lastFrameTime < frame_interval_ms) {
     return; // Not time for next frame yet
   }
   lastFrameTime = currentTime;
