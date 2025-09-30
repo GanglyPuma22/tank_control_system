@@ -5,6 +5,7 @@
 .vscode/ipch
 
 //Ignore WiFi credentials file required for connecting to a network
+src/*/Credentials.cpp
 src/*/Credentials.h
 
 //Ignore custom test files 

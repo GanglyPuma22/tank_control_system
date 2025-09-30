@@ -1,86 +1,83 @@
 #include "CameraDevice.h"
 
-// Pin order: {CS, SCK, MISO, MOSI, SDA, SCL}
-CameraDevice::CameraDevice(const std::string &name, const uint8_t pins[6],
-                           Resolution res, int8_t fps,
-                           int8_t cameraTaskPriority)
-    : Device(name), csPin(pins[0]), sckPin(pins[1]), misoPin(pins[2]),
-      mosiPin(pins[3]), sdaPin(pins[4]), sclPin(pins[5]), resolution(res),
-      fps(fps), cameraTaskPriority(cameraTaskPriority),
-      camera(OV2640, pins[0]) {
-  xPeriod = pdMS_TO_TICKS((1000 / (fps)));
+CameraDevice::CameraDevice(
+    const std::string &name) //, const uint8_t macAddress[6])
+    : Device(name) {
+  // memcpy(this->cameraBoardMacAddress, macAddress, 6);
 }
 
-void CameraDevice::begin() {
-  Serial.println("Camera begin: setting pinMode");
-  pinMode(csPin, OUTPUT);
+void CameraDevice::setCameraMessage(String message, int camera_action,
+                                    int fps) {
 
-  Wire.begin(sdaPin, sclPin);
-
-  delay(10);
-
-  SPI.begin(sckPin, misoPin, mosiPin, csPin);
-  // Reset the CPLD
-  camera.write_reg(0x07, 0x80);
-  delay(100);
-  camera.write_reg(0x07, 0x00);
-  delay(100);
-
-  // Check if the ArduCAM SPI bus is OK
-  camera.write_reg(ARDUCHIP_TEST1, 0x55);
-  uint8_t temp = camera.read_reg(ARDUCHIP_TEST1);
-  if (temp != 0x55) {
-    Serial.println(F("ACK CMD SPI interface Error! END"));
-    delay(1000);
-  } else {
-    Serial.println(F("ACK CMD SPI interface OK. END"));
-  }
-
-  camera.CS_HIGH();
-  camera.set_format(JPEG);
-
-  Wire.beginTransmission(0x30); // OV2640 default
-  if (Wire.endTransmission() != 0) {
-    Serial.println("ERROR: Camera I2C not found. Check SDA/SCL wiring.");
-    return;
-  }
-
-  camera.InitCAM();
-
-  camera.clear_fifo_flag();
-  setResolution(resolution);
-
-  this->setState(true);
-  Serial.println("📸 Camera initialized 📸");
+  strncpy(this->cameraMessage.message, message.c_str(),
+          sizeof(this->cameraMessage.message) - 1);
+  this->cameraMessage.message[sizeof(this->cameraMessage.message) - 1] =
+      '\0'; // Ensure null-termination
+  this->cameraMessage.camera_action = camera_action;
+  this->cameraMessage.fps = fps;
 }
 
+// TODO Cleanest way to do this here would be to have a time check for last
+// retry and only retry every x seconds
 void CameraDevice::update() {
-  // No periodic updates needed
+  if (this->shouldBeOnState != this->isOn() &&
+      this->currentlySendingEspNowCommand &&
+      this->currentRetryCount < MAX_ESP_NOW_RETRIES) {
+    this->currentRetryCount++;
+    // Desired state differs from actual state, attempt to correct
+    if (this->shouldBeOnState) {
+      turnOn();
+    } else {
+      turnOff();
+    }
+  }
+
+  if (this->currentRetryCount >= MAX_ESP_NOW_RETRIES) {
+    this->currentlySendingEspNowCommand = false;
+    this->setErrorState(true);
+  }
 }
 
-void CameraDevice::turnOn() {
-  // Setting state first to make sure camera passes on check
-  this->setState(true);
+bool CameraDevice::attemptSend(const camera_message &message) {
+  esp_err_t result =
+      esp_now_send(CAMERA_BOARD_MAC_ADDRESS, (const uint8_t *)&message,
+                   sizeof(camera_message));
 
-  // Only start stream if Task doesnt exist already
-  if (handleStreamTask == nullptr) {
-    startStreamTaskAsync();
+  if (result == ESP_OK) {
+    return true;
   }
+
+  return false;
+}
+
+// State will be set by onDataSent callback in main.cpp -> This guarantees
+// camera state represents true state of camera board.
+void CameraDevice::turnOn() {
+  setCameraMessage("Camera On", 1, this->fps);
+  attemptSend(this->cameraMessage);
 }
 void CameraDevice::turnOff() {
-  this->setState(false);
-
-  Serial.println("Turning off the Stream!");
-  if (handleStreamTask != nullptr) {
-    vTaskDelete(handleStreamTask);
-    handleStreamTask = nullptr;
-  }
+  setCameraMessage("Camera Off", 0, this->fps);
+  attemptSend(this->cameraMessage);
 }
 
 void CameraDevice::applyState(JsonVariantConst desired) {
+  // FPS needs to be set first since turnOn and turnOff use it
+  if (desired["fps"].is<JsonVariantConst>()) {
+    int newFps = desired["fps"].as<int>();
+    if (newFps > 0 && newFps <= 30) {
+      this->setFps(newFps);
+      setCameraMessage("Camera FPS", 2, this->fps);
+      attemptSend(this->cameraMessage);
+    } else {
+      Serial.println("Invalid FPS value received, must be between 1 and 30");
+    }
+  }
   if (desired["state"].is<JsonVariantConst>()) {
-    bool shouldBeOn = desired["state"].as<bool>();
-    if (shouldBeOn) {
+    this->shouldBeOnState = desired["state"].as<bool>();
+    this->currentRetryCount = 0;
+    this->currentlySendingEspNowCommand = true;
+    if (this->shouldBeOnState) {
       turnOn();
     } else {
       turnOff();
@@ -90,96 +87,6 @@ void CameraDevice::applyState(JsonVariantConst desired) {
 
 void CameraDevice::reportState(JsonDocument &doc) {
   doc["state"] = this->isOn();
-}
-
-void CameraDevice::handleStreamTaskAsync(void *param) {
-  // Set last wake time for accurate periodic delay
-  xLastWakeTime = xTaskGetTickCount();
-  while (true) {
-
-    if (!capturing) {
-      camera.flush_fifo();
-      camera.clear_fifo_flag();
-      camera.start_capture();
-      capturing = true;
-      imageCorrupted = false;
-      frameReady = false;
-      jpegBufferLen = 0;
-    }
-
-    if (camera.get_bit(
-            ARDUCHIP_TRIG,
-            CAP_DONE_MASK)) { // TODO consider moving this to isFrameReady()
-                              // function and removing frameReady bool
-
-      frameReady = true;
-      jpegBufferLen = camera.read_fifo_length();
-
-      if (jpegBufferLen == 0 || jpegBufferLen > MAX_BUFFER_SIZE) {
-        imageCorrupted = true;
-        capturing = false;
-        Serial.println("ERROR: Image corrupted during stream");
-        continue;
-      }
-      imageCorrupted = false;
-      capturing = false;
-      camera.CS_LOW();
-      camera.set_fifo_burst();
-      const size_t CHUNK_SIZE = 1024;
-      size_t bufferLen = jpegBufferLen;
-      while (bufferLen > 0) {
-        size_t toRead = min(CHUNK_SIZE, bufferLen);
-        SPI.transfer(jpegBuffer, toRead);
-        udp.beginPacket(GANGLYPUMA22_LAPTOP_IP, GANGLYPUMA22_LAPTOP_PORT);
-        udp.write(jpegBuffer, toRead);
-        udp.endPacket();
-        bufferLen -= toRead;
-      }
-
-      camera.CS_HIGH();
-
-      // Delay inside the capture section so that it only delays once for the
-      // capture + send timing. If in main while loop it delays multiple times
-      BaseType_t wasDelayed = xTaskDelayUntil(&xLastWakeTime, xPeriod);
-    }
-  }
-  Serial.print("ERROR: Issue during camera capture process... Ending Stream!");
-  vTaskDelete(NULL);
-  handleStreamTask = nullptr;
-}
-
-void CameraDevice::startStreamTaskAsync() {
-  if (!this->isOn()) {
-    Serial.println("ERROR: Camera not initialized - cannot start stream task");
-    return;
-  }
-  Serial.println("Starting async stream task 🎥");
-  // Use priority 16 for camera task - max priority is configMAX_PRIORITIES, 18
-  // and above is usually system critical tasks
-  xTaskCreate(
-      [](void *params) {
-        static_cast<CameraDevice *>(params)->handleStreamTaskAsync(params);
-      },
-      "CameraCaptureTask", 4096, this, cameraTaskPriority, &handleStreamTask);
-}
-
-void CameraDevice::setResolution(Resolution res) {
-  resolution = res;
-  switch (res) {
-  case Resolution::QVGA:
-    camera.OV2640_set_JPEG_size(OV2640_320x240);
-    break;
-  case Resolution::VGA:
-    camera.OV2640_set_JPEG_size(OV2640_640x480);
-    break;
-  case Resolution::SVGA:
-    camera.OV2640_set_JPEG_size(OV2640_800x600);
-    break;
-  case Resolution::XGA:
-    camera.OV2640_set_JPEG_size(OV2640_1024x768);
-    break;
-  case Resolution::FULL:
-    camera.OV2640_set_JPEG_size(OV2640_1600x1200);
-    break;
-  }
+  doc["error"] = this->hasError();
+  doc["fps"] = this->getFps();
 }
