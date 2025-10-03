@@ -42,7 +42,7 @@ void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
     // Turn off camera
     shouldBeStreaming = false;
   }
-  if (mainBoardData.fps > 0 && mainBoardData.fps < 30) {
+  if (mainBoardData.fps > 0 && mainBoardData.fps <= 30) {
     target_fps = mainBoardData.fps;
     frame_interval_ms = 1000 / target_fps;
   }
@@ -107,11 +107,15 @@ void setup() {
     Serial.println("Camera init failed");
     return;
   }
+  Serial.printf("PSRAM size: %d bytes\n", ESP.getPsramSize());
+
   Serial.println("Camera initialized successfully");
   delay(1000); // Allow time for devices to initialize
   Serial.println("Initialization complete.!");
 }
 
+int fpsCounter = 0;
+unsigned long fpsTimer = 0;
 void loop() {
 
   // Handle OTA updates
@@ -128,7 +132,16 @@ void loop() {
   if (currentTime - lastFrameTime < frame_interval_ms) {
     return; // Not time for next frame yet
   }
-  lastFrameTime = currentTime;
 
   captureAndTransmitFrame();
+  lastFrameTime = currentTime;
+
+  // Update FPS counter
+  fpsCounter++;
+  if (currentTime - fpsTimer >= 1000) {
+    Serial.print("FPS: ");
+    Serial.println(fpsCounter);
+    fpsCounter = 0;
+    fpsTimer = currentTime;
+  }
 }
