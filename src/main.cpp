@@ -78,7 +78,7 @@ void setup() {
   aht20Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
-  wifi.connectAndSyncTime(true);
+  wifi.connectAndSyncTime(true, true);
   wifi.setupEspNow(
       false, nullptr,
       onDataSentToCameraBoard); // This file is uploaded to the main board

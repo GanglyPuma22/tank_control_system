@@ -22,7 +22,8 @@ public:
   void setupOTA();
   void setupEspNow(bool isCameraBoard = false, RecvCallback recvCb = nullptr,
                    SendCallback sendCb = nullptr);
-  void connectAndSyncTime(bool shouldSetupOTA = false);
+  void connectAndSyncTime(bool shouldSetupOTA = false,
+                          bool shouldSetupTimeSync = false);
   void maintain();
   bool getLocalTimeWithDST(struct tm &timeinfo);
 

@@ -70,7 +70,8 @@ void WiFiHelper::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
   Serial.println("ESP-NOW initialized");
 }
 
-void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA) {
+void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
+                                    bool shouldSetupTimeSync) {
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSID);
 
@@ -97,16 +98,19 @@ void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA) {
     setupOTA();
   }
 
-  configTzTime(tzInfo, ntpServer);
+  if (shouldSetupTimeSync) {
+    Serial.println("Synchronizing time with NTP server...");
+    configTzTime(tzInfo, ntpServer);
 
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    Serial.println("Waiting for NTP time sync...");
-    delay(500);
+    struct tm timeinfo;
+    while (!getLocalTime(&timeinfo)) {
+      Serial.println("Waiting for NTP time sync...");
+      delay(500);
+    }
+
+    Serial.print("Time synced: ");
+    Serial.println(asctime(&timeinfo));
   }
-
-  Serial.print("Time synced: ");
-  Serial.println(asctime(&timeinfo));
 }
 
 void WiFiHelper::maintain() {

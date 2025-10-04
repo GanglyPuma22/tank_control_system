@@ -73,8 +73,8 @@ void setup() {
   // Enable for detailed debug output (for when the gremlins strike)
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
-  // True to setup OTA updates, false to skip
-  wifi.connectAndSyncTime(true);
+  // True to setup OTA updates, false to skip time syncing
+  wifi.connectAndSyncTime(true, false);
   wifi.setupEspNow(true, cameraBoardOnDataRecv);
 
   camera_config_t config;
@@ -144,4 +144,6 @@ void loop() {
     fpsCounter = 0;
     fpsTimer = currentTime;
   }
+
+  delay(10); // Small delay to avoid overwhelming the loop
 }
