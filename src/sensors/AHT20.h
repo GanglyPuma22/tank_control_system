@@ -10,12 +10,16 @@ public:
     if (!aht.begin()) {
       Serial.println("Could not find AHT20? Check wiring");
     } else {
-
+      this->initializeSuccessful();
       Serial.println("AHT20 found");
     }
   }
 
   std::optional<std::tuple<float, float>> readData() override {
+    if (!isInitialized()) {
+      Serial.println("AHT20 Sensor not initialized");
+      return std::nullopt;
+    }
     sensors_event_t humidity, temp;
     aht.getEvent(&humidity,
                  &temp); // populate temp and humidity objects with fresh data

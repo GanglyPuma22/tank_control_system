@@ -131,8 +131,6 @@ void loop() {
                            ambientTemp);
       firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
       firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
-    } else {
-      Serial.println("Failed to read MLX sensor");
     }
   }
 
@@ -150,9 +148,6 @@ void loop() {
       firebaseApp.setValue("sensors/AHT20/reported/temperature", temperatureF);
       firebaseApp.setValue("sensors/AHT20/reported/humidity", humidity);
       firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
-
-    } else {
-      Serial.println("Failed to read sensor");
     }
   }
 }
