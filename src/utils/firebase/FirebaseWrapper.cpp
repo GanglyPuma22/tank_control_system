@@ -1,5 +1,8 @@
 #include "FirebaseWrapper.h"
 
+// Static member initialization
+String FirebaseWrapper::lastUpdatedDeviceName = "";
+
 FirebaseWrapper::FirebaseWrapper(const char *apiKey, const char *email,
                                  const char *password, const char *dbUrl)
     : userAuth(apiKey, email, password), asyncClient(sslClient),
@@ -17,7 +20,7 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
 
   // Initialize app with async client and user auth, no callback
   initializeApp(asyncClient, app, getAuth(userAuth));
-
+  app.getApp<Firestore::Documents>(firestoreDocs);
   app.getApp<RealtimeDatabase>(database);
   database.url(databaseUrl);
   Serial.println("🔥 Firebase initialized 🔥");
@@ -36,6 +39,91 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
   }
 }
 
+String FirebaseWrapper::getBaseLogPath() {
+  return "user_logs/" + String(FIREBASE_USER_NAME) + "/tanks/" +
+         String(FIREBASE_TANK_NAME);
+};
+
+void FirebaseWrapper::logSensorEvent(
+    const char *sensorName, std::optional<std::tuple<float, float>> sensorData,
+    const char *label1, const char *label2) {
+  String documentPath =
+      getBaseLogPath() + "/sensors/" + String(sensorName) + "/events/";
+
+  // Use current time in seconds since epoch
+  time_t now;
+  time(&now);
+  Values::TimestampValue timeStampV(getTimestampString(now, 0));
+
+  Document<Values::Value> doc("timeString", Values::Value(timeStampV));
+
+  Values::MapValue map;
+  if (sensorData) {
+    auto [sensorValue, sensorValue2] = *sensorData;
+    Values::DoubleValue sensorValueV(sensorValue);
+    Values::DoubleValue sensorValue2V(sensorValue2);
+    map.add(label1, Values::Value(sensorValueV))
+        .add(label2, Values::Value(sensorValue2V));
+  } else {
+    Values::StringValue errorMsgV("sensor read failed");
+    map.add("error", Values::Value(errorMsgV));
+  }
+
+  doc.add("data", Values::Value(map));
+
+  // Async call with callback function.
+  this->firestoreDocs.createDocument(
+      this->asyncClient, Firestore::Parent(FIREBASE_PROJECT_ID), documentPath,
+      DocumentMask(), doc, &FirebaseWrapper::onLogResultStatic,
+      "createDocumentTask");
+}
+
+// void FirebaseWrapper::logStatusEvent(const char *statusMessage,
+//                                      const char *status_type) {
+
+//   String documentPath = getBaseLogPath() + "/status/";
+
+//   Values::TimestampValue timeStampV(TimeOfDay::currentTimeStringISO());
+//   Values::StringValue statusMsgV(statusMessage);
+//   Values::StringValue statusTypeV(status_type);
+
+//   Document<Values::Value> doc("timeString", Values::Value(timeStampV));
+//   doc.add("statusMessage", Values::Value(statusMsgV))
+//       .add("statusType", Values::Value(statusTypeV));
+//   // Async call with callback function.
+//   this->firestoreDocs.createDocument(
+//       this->asyncClient, Firestore::Parent(FIREBASE_PROJECT_ID),
+//       documentPath, DocumentMask(), doc, &FirebaseWrapper::onLogResultStatic,
+//       "createDocumentTask");
+// }
+
+void FirebaseWrapper::logDeviceEvent(Values::MapValue &map,
+                                     const char *deviceName,
+                                     const char *event_type,
+                                     const char *event_desc) {
+
+  String documentPath =
+      getBaseLogPath() + "/devices/" + String(deviceName) + "/events/";
+
+  // Use current time in seconds since epoch
+  time_t now;
+  time(&now);
+  Values::TimestampValue timeStampV(getTimestampString(now, 0));
+
+  Values::StringValue eventTypeV(event_type);
+  Values::StringValue eventDescV(event_desc);
+
+  Document<Values::Value> doc("timeString", Values::Value(timeStampV));
+  doc.add("eventType", Values::Value(eventTypeV))
+      .add("eventDesc", Values::Value(eventDescV))
+      .add("data", Values::Value(map));
+  // Async call with callback function.
+  this->firestoreDocs.createDocument(
+      this->asyncClient, Firestore::Parent(FIREBASE_PROJECT_ID), documentPath,
+      DocumentMask(), doc, &FirebaseWrapper::onLogResultStatic,
+      "createDocumentTask");
+}
+
 void FirebaseWrapper::loop() {
   app.loop();
 
@@ -45,6 +133,19 @@ void FirebaseWrapper::loop() {
   if (app.ready() && !devicesInitialized) {
     fetchAndApplyDesiredStates();
     devicesInitialized = true;
+  }
+
+  if (app.ready() && !FirebaseWrapper::lastUpdatedDeviceName.isEmpty()) {
+    auto device = Device::getDevice(
+        FirebaseWrapper::lastUpdatedDeviceName.c_str()); // get device pointer
+    if (device) {
+      Values::MapValue map;
+      device->logState(map);
+      logDeviceEvent(map, FirebaseWrapper::lastUpdatedDeviceName.c_str(),
+                     "update_state", "");
+    }
+
+    FirebaseWrapper::lastUpdatedDeviceName = "";
   }
 }
 
@@ -92,18 +193,19 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
       String end_identifier = "/desired";
       Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
       if (path.endsWith(end_identifier)) {
-        String devName = path.substring(
+        String deviceName = path.substring(
             1, path.length() -
                    end_identifier.length()); // strip /devices/ and /desired
         Serial.printf("Received desired state for device name: %s\n",
-                      devName.c_str());
-        auto it = Device::getDevice(devName.c_str());
+                      deviceName.c_str());
+        auto it = Device::getDevice(deviceName.c_str());
         if (it) {                                              // nullptr check
           String payloadStr = streamResult.to<const char *>(); // get raw JSON
           JsonDocument doc; // adjust size as needed
           DeserializationError err = deserializeJson(doc, payloadStr);
           if (!err) {
             it->applyState(doc.as<JsonVariantConst>());
+            lastUpdatedDeviceName = deviceName;
           } else {
             Serial.printf("Failed to parse JSON: %s\n", err.c_str());
           }
@@ -144,7 +246,7 @@ void FirebaseWrapper::fetchAndApplyDesiredStates() {
   }
   const auto &allDevices = Device::getAllDevices();
 
-  for (const auto &[name, dev] : allDevices) {
+  for (const auto &[name, device] : allDevices) {
     String path = "/devices/" + String(name.c_str()) + "/desired";
     Serial.printf("Fetching desired state for device %s from path %s\n",
                   name.c_str(), path.c_str());
@@ -152,11 +254,15 @@ void FirebaseWrapper::fetchAndApplyDesiredStates() {
     // Using await get method since this function is called at setup
     const char *desiredState = database.get<const char *>(asyncClient, path);
     JsonDocument doc; // adjust size as needed
+    Values::MapValue map;
     DeserializationError err = deserializeJson(doc, desiredState);
     if (!err) {
-      dev->applyState(doc.as<JsonVariantConst>());
+      device->applyState(doc.as<JsonVariantConst>());
+      device->logState(map);
+      logDeviceEvent(map, name.c_str(), "initial_state",
+                     "Initial desired state applied to device successfully");
     } else {
-      Serial.printf("Failed to parse JSON: %s\n", err.c_str());
+      logDeviceEvent(map, name.c_str(), "error", err.c_str());
     }
   }
 }
@@ -171,33 +277,39 @@ void FirebaseWrapper::onSetResultStatic(AsyncResult &result) {
   }
 }
 
-// void FirebaseWrapper::applyDesiredStateStatic(AsyncResult &result) {
-//   if (!result.isResult() || result.isError()) {
-//     Firebase.printf("[Firebase Error] - Get - %s\n",
-//                     result.error().message().c_str());
-//     return;
-//   }
+void FirebaseWrapper::onLogResultStatic(AsyncResult &result) {
+  if (!result.isResult())
+    return;
 
-//   if (result.available()) {
-//     String path = result.dataPath();
-//     String end_identifier = "/desired";
-//     Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
-//     if (path.endsWith(end_identifier)) {
-//       String devName =
-//           path.substring(1, path.length() - end_identifier.length());
-//       Serial.printf("Received desired stat for device name: %s\n",
-//                     devName.c_str());
-//       auto it = Device::getDevice(devName.c_str());
-//       if (it) {                                        // nullptr check
-//         String payloadStr = result.to<const char *>(); // get raw JSON
-//         JsonDocument doc;                              // adjust size as
-//         needed DeserializationError err = deserializeJson(doc, payloadStr);
-//         if (!err) {
-//           it->applyState(doc.as<JsonVariantConst>());
-//         } else {
-//           Serial.printf("Failed to parse JSON: %s\n", err.c_str());
-//         }
-//       }
-//     }
-//   }
-// }
+  if (result.isError()) {
+    Firebase.printf("[Firebase Error] - Log -  %s code: %d\n",
+                    result.error().message().c_str(), result.error().code());
+  }
+}
+
+// Add helper function for proper timestamp formatting
+String FirebaseWrapper::getTimestampString(uint64_t sec, uint32_t nano) {
+  if (sec > 0x3afff4417f)
+    sec = 0x3afff4417f;
+
+  if (nano > 0x3b9ac9ff)
+    nano = 0x3b9ac9ff;
+
+  time_t now;
+  struct tm ts;
+  char buf[80];
+  now = sec;
+  ts = *gmtime(&now); // Use gmtime for UTC
+
+  String format = "%Y-%m-%dT%H:%M:%S";
+
+  if (nano > 0) {
+    String fraction = String(double(nano) / 1e9, 9);
+    fraction.remove(0, 1);
+    format += fraction;
+  }
+  format += "Z"; // Always end with Z for UTC
+
+  strftime(buf, sizeof(buf), format.c_str(), &ts);
+  return buf;
+}

@@ -90,3 +90,9 @@ void CameraDevice::reportState(JsonDocument &doc) {
   doc["error"] = this->hasError();
   doc["fps"] = this->getFps();
 }
+
+void CameraDevice::logState(FirebaseMapValue &map) {
+  map.add("state", FirebaseBooleanValue(this->isOn()))
+      .add("error", FirebaseBooleanValue(this->hasError()))
+      .add("fps", FirebaseIntegerValue(this->getFps()));
+}
