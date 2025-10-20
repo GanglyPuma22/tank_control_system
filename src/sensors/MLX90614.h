@@ -4,13 +4,14 @@
 
 class MLX90614 : public Sensor {
 public:
-  MLX90614() {}
+  MLX90614(double emissivity = 1.0) : emissivity(emissivity) {}
 
   void begin() {
     if (!mlx.begin()) {
       Serial.println("Error connecting to MLX sensor. Check wiring.");
     } else {
       this->initializeSuccessful();
+      mlx.writeEmissivity(this->emissivity);
       Serial.print("MLX Initialized and its Emissivity = ");
       Serial.println(mlx.readEmissivity());
     }
@@ -33,4 +34,5 @@ public:
 
 private:
   Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+  double emissivity;
 };
