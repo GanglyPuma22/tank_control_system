@@ -47,6 +47,18 @@ public:
     return TimeOfDay(0, 0);
   }
 
+  static String currentTimeStringISO() {
+    struct tm timeinfo;
+    char timeBuffer[20];
+
+    if (!getLocalTime(&timeinfo)) {
+      Serial.println("Failed to obtain time");
+      return String("1970-01-01T00:00:00Z");
+    }
+    strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+    return String(timeBuffer);
+  }
+
   String toString() const {
     char buffer[6]; // HH:MM\0
     snprintf(buffer, sizeof(buffer), "%02d:%02d", hour, minute);

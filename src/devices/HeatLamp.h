@@ -78,6 +78,12 @@ public:
     doc["offAbove"] = offAboveTempF;
   }
 
+  void logState(Values::MapValue &heatLampState) override {
+    heatLampState.add("state", Values::BooleanValue(this->isOn()))
+        .add("onAbove", Values::DoubleValue(this->onAboveTempF))
+        .add("offAbove", Values::DoubleValue(this->offAboveTempF));
+  }
+
 private:
   uint8_t pin;
   float onAboveTempF;

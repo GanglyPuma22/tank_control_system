@@ -76,6 +76,12 @@ public:
     doc["offTime"] = offTime.toString();
   }
 
+  void logState(Values::MapValue &lightState) override {
+    lightState.add("state", Values::BooleanValue(this->isOn()))
+        .add("onTime", Values::StringValue(this->onTime.toString()))
+        .add("offTime", Values::StringValue(this->offTime.toString()));
+  }
+
 private:
   uint8_t pin;
   TimeOfDay onTime;

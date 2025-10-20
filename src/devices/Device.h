@@ -1,7 +1,9 @@
 #pragma once
+#include "../utils/firebase/FirebaseTypes.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <map>
+
 
 class Device {
 public:
@@ -10,6 +12,10 @@ public:
     registry()[name] = this;
     state = false;
   } // todo: Figure out way to not have name in html depend on this name
+  ~Device() {
+    // Unregister device on destruction
+    registry().erase(name);
+  }
 
   static Device *getDevice(const std::string &name) {
     Serial.printf("Looking up device by name: %s\n", name.c_str());
@@ -24,6 +30,7 @@ public:
   // Functions to handle state syncing between webpage and esp32 using firebase
   virtual void applyState(JsonVariantConst desired) = 0;
   virtual void reportState(JsonDocument &doc) = 0;
+  virtual void logState(FirebaseMapValue &map) = 0;
 
   // Return const reference to the entire registry
   static const std::map<std::string, Device *> &getAllDevices() {

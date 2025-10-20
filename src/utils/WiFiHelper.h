@@ -6,6 +6,9 @@
 #include <WiFi.h>
 #include <esp_now.h>
 
+// // Forward declaration to avoid circular dependency
+// class FirebaseWrapper;
+
 // Define callback function types
 using SendCallback = void (*)(const uint8_t *, esp_now_send_status_t);
 using RecvCallback = void (*)(const uint8_t *, const uint8_t *, int);
@@ -14,6 +17,11 @@ using RecvCallback = void (*)(const uint8_t *, const uint8_t *, int);
 class WiFiHelper {
 public:
   WiFiHelper();
+
+  // // Use FirebaseWrapper reference directly
+  // void setFirebaseWrapper(FirebaseWrapper *firebase) {
+  //   firebaseWrapper = firebase;
+  // }
 
   static void defaultOnDataSent(const uint8_t *mac_addr,
                                 esp_now_send_status_t status);
@@ -35,4 +43,6 @@ private:
   static constexpr int MAX_WIFI_RETRIES = 30;
   static constexpr const char *ntpServer = "pool.ntp.org";
   static constexpr const char *tzInfo = "PST8PDT,M3.2.0/2,M11.1.0/2";
+  // static FirebaseWrapper *firebaseWrapper; // Static pointer for callback
+  // access
 };

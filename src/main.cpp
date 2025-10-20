@@ -28,13 +28,18 @@ constexpr uint8_t LIGHT_PIN = 1;     // Pin for light relay
 constexpr float HEAT_LAMP_ON_ABOVE_TEMP_F =
     80.0f; // should be 66 but higher for testing relay
 constexpr float HEAT_LAMP_OFF_ABOVE_TEMP_F = 100.0f;
-
-MLX90614 mlxSensor; // Uses default I2C pins 8 (SDA) and 9 (SCL)
-AHT20 aht20Sensor;  // Uses default I2C pins 8 (SDA) and 9 (SCL)
+// Device instances
 HeatLamp heatLamp("heatLamp", HEAT_LAMP_PIN, HEAT_LAMP_ON_ABOVE_TEMP_F,
                   HEAT_LAMP_OFF_ABOVE_TEMP_F);
 Light roomLight("lights", LIGHT_PIN, TimeOfDay(0, 0),
                 TimeOfDay(23, 59)); // Lights on from 7:30AM to 8PM
+
+// Sensor instances
+// Adjusted for grout surface of tanks
+constexpr double MLX90614_EMISSIVITY = 0.94;
+// They use default I2C pins 8 (SDA) and 9 (SCL)
+MLX90614 mlxSensor(MLX90614_EMISSIVITY);
+AHT20 aht20Sensor;
 
 // This camera device instance is used for firebase state management
 // Camera streaming is handled in camera_board_main.cpp running on the
@@ -78,6 +83,7 @@ void setup() {
   aht20Sensor.begin();
   heatLamp.begin();
   roomLight.begin();
+  // wifi.setFirebaseWrapper(&firebaseApp); // Set the FirebaseWrapper
   wifi.connectAndSyncTime(true, true);
   wifi.setupEspNow(
       false, nullptr,
@@ -92,23 +98,22 @@ void setup() {
 unsigned long lastDeviceLoopUpdate = 0;
 unsigned long lastPublishedStateUpdate = 0;
 unsigned long lastSensorUpdate = 0;
-unsigned long lastSlowUpdate = 0;
+unsigned long lastSensorLogUpdate = 0;
 
 void loop() {
   unsigned long now = millis();
-
+  wifi.maintain();    // Keep Wi-Fi alive and handle OTA updates
   firebaseApp.loop(); // Process Firebase app tasks
-  camera.update();    // Process camera state changes if any
+  // Process camera state changes if any -> Done as fast as possible for esp-now
+  camera.update();
 
   // Allow time to be accessed in the rest of the loop
   struct tm timeInfo;
   char timeBuffer[20];
 
-  // Run the rest of the period tasks every 1 second
+  // Run the rest of the periodic tasks every 1 second
   if (now - lastDeviceLoopUpdate >= 1000) {
     lastDeviceLoopUpdate = now;
-    wifi.maintain(); // Keep Wi-Fi alive
-
     roomLight.update();
 
     // Read time from NTP
@@ -120,34 +125,49 @@ void loop() {
     firebaseApp.setValue("/status/time", timeBuffer);
   }
 
-  if (now - lastSensorUpdate >= 2000) {
-    lastSensorUpdate = now;
-    // Read sensors and update heat lamp state
-    auto mlxReading = mlxSensor.readData();
-    if (mlxReading) {
-      auto [objectTemp, ambientTemp] = *mlxReading;
-      heatLamp.update(objectTemp);
-      firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
-                           ambientTemp);
-      firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
-      firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
-    }
-  }
-
   // Publish states every 3 seconds - Seems stable compared to this in 1s loop
   if (now - lastPublishedStateUpdate >= 3000) {
     firebaseApp.publishReportedStates();
     lastPublishedStateUpdate = now;
   }
 
-  if (now - lastSlowUpdate >= 5000) {
-    lastSlowUpdate = now;
-    auto reading = aht20Sensor.readData();
-    if (reading) {
-      auto [temperatureF, humidity] = *reading;
+  if (now - lastSensorUpdate >= 5000) {
+    lastSensorUpdate = now;
+    // Compute a fresh timestamp string for lastUpdateTime
+    struct tm sensorTimeInfo;
+    char sensorTimeBuffer[20] = {0};
+    if (wifi.getLocalTimeWithDST(sensorTimeInfo)) {
+      strftime(sensorTimeBuffer, sizeof(sensorTimeBuffer), "%Y-%m-%d %H:%M:%S", &sensorTimeInfo);
+      firebaseApp.setValue("sensors/lastUpdateTime", sensorTimeBuffer);
+    } else {
+      firebaseApp.setValue("sensors/lastUpdateTime", "");
+    }
+
+    auto aht20Reading = aht20Sensor.readData();
+    auto mlxReading = mlxSensor.readData();
+
+    if (aht20Reading) {
+      auto [temperatureF, humidity] = *aht20Reading;
+      // update heat lamp state
+      heatLamp.update(temperatureF);
+
       firebaseApp.setValue("sensors/AHT20/reported/temperature", temperatureF);
       firebaseApp.setValue("sensors/AHT20/reported/humidity", humidity);
-      firebaseApp.setValue("sensors/lastUpdateTime", timeBuffer);
+    }
+    if (mlxReading) {
+      auto [objectTemp, ambientTemp] = *mlxReading;
+      firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
+                           ambientTemp);
+      firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
+    }
+
+    // Log sensor data every minute
+    if (now - lastSensorLogUpdate >= 60000) {
+      firebaseApp.logSensorEvent("MLX90614", mlxReading, "objectTempF",
+                                 "ambientTempF");
+      firebaseApp.logSensorEvent("AHT20", aht20Reading, "temperatureF",
+                                 "humidity");
+      lastSensorLogUpdate = now;
     }
   }
 }
