@@ -98,7 +98,7 @@ void setup() {
   config.pin_reset = -1;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.frame_size = FRAMESIZE_QVGA;
+  config.frame_size = FRAMESIZE_VGA;
   config.jpeg_quality = 15;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.fb_count = 2;
@@ -117,10 +117,7 @@ void setup() {
 int fpsCounter = 0;
 unsigned long fpsTimer = 0;
 void loop() {
-
-  // Handle OTA updates
-  ArduinoOTA.handle();
-  // Maintain WiFi connection
+  // Maintain WiFi connection and handles OTA updates
   wifi.maintain();
 
   if (!shouldBeStreaming) {
