@@ -23,18 +23,19 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
   app.getApp<Firestore::Documents>(firestoreDocs);
   app.getApp<RealtimeDatabase>(database);
   database.url(databaseUrl);
-  Serial.println("🔥 Firebase initialized 🔥");
+  // Serial.println("🔥 Firebase initialized 🔥");
 
   if (!app.ready()) {
-    Serial.println("App not ready, auth issue?");
+    // Serial.println("App not ready, auth issue?");
   } else {
-    Serial.printf("Token: %s\n", app.getToken().c_str());
+    // Serial.printf("Token: %s\n", app.getToken().c_str());
   }
 
   dataStreamClient.setSSEFilters(
       "get,put,patch,keep-alive,cancel,auth_revoked");
   if (dataStreamPath) {
-    Serial.printf("Starting data stream listener path: %s\n", dataStreamPath);
+    // Serial.printf("Starting data stream listener path: %s\n",
+    // dataStreamPath);
     subscribeValue(dataStreamPath);
   }
 }
@@ -191,13 +192,14 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
     if (streamResult.isStream()) {
       String path = streamResult.dataPath();
       String end_identifier = "/desired";
-      Serial.printf("Full path recieved for streamResult: %s\n", path.c_str());
+      // Serial.printf("Full path recieved for streamResult: %s\n",
+      // path.c_str());
       if (path.endsWith(end_identifier)) {
         String deviceName = path.substring(
             1, path.length() -
                    end_identifier.length()); // strip /devices/ and /desired
-        Serial.printf("Received desired state for device name: %s\n",
-                      deviceName.c_str());
+        // Serial.printf("Received desired state for device name: %s\n",
+        // deviceName.c_str());
         auto it = Device::getDevice(deviceName.c_str());
         if (it) {                                              // nullptr check
           String payloadStr = streamResult.to<const char *>(); // get raw JSON
@@ -207,12 +209,13 @@ void FirebaseWrapper::dataStreamCallback(AsyncResult &aResult) {
             it->applyState(doc.as<JsonVariantConst>());
             lastUpdatedDeviceName = deviceName;
           } else {
-            Serial.printf("Failed to parse JSON: %s\n", err.c_str());
+            // Serial.printf("Failed to parse JSON: %s\n",
+            // err.c_str());
           }
         }
       }
     } else {
-      Serial.println("----------------------------");
+      // Serial.println("----------------------------");
       Firebase.printf("task: %s, payload: %s\n", aResult.uid().c_str(),
                       aResult.c_str());
     }
@@ -230,7 +233,8 @@ void FirebaseWrapper::publishReportedStates() {
     JsonDocument doc;
     dev->reportState(doc);
 
-    String path = "/devices/" + String(name.c_str()) + "/reported";
+    String path =
+        "/tanks/yashatankid/devices/" + String(name.c_str()) + "/reported";
     String jsonStr;
     serializeJson(doc, jsonStr);
     object_t json(jsonStr.c_str()); // convert ArduinoJson → Firebase object_t
@@ -247,11 +251,13 @@ void FirebaseWrapper::fetchAndApplyDesiredStates() {
   const auto &allDevices = Device::getAllDevices();
 
   for (const auto &[name, device] : allDevices) {
-    String path = "/devices/" + String(name.c_str()) + "/desired";
-    Serial.printf("Fetching desired state for device %s from path %s\n",
-                  name.c_str(), path.c_str());
+    String path =
+        "/tanks/yashatankid/devices/" + String(name.c_str()) + "/desired";
+    // Serial.printf("Fetching desired state for device %s from path %s\n",
+    // name.c_str(), path.c_str());
 
-    // Using await get method since this function is called at setup
+    // Using await get method since this function is called at
+    // setup
     const char *desiredState = database.get<const char *>(asyncClient, path);
     JsonDocument doc; // adjust size as needed
     Values::MapValue map;

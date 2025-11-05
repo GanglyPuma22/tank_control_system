@@ -15,3 +15,6 @@ tests/
 firebase.json
 .firebaserc
 .firebase/
+
+//Ignore logs
+logs/

@@ -8,10 +8,6 @@
 #include <sensors/MLX90614.h>
 #include <utils/TimeOfDay.h>
 #include <utils/WiFiHelper.h>
-// Credentials are coming from include in WifiUtil.h
-// Firebase setup using FirebaseClient class wrapper
-FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
-                            FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
 
 //**************
 // This implentation uses the M5Stamp C3 board with the Arduino framework.
@@ -19,6 +15,13 @@ FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
 // If you are using a different board, please adjust the pin numbers
 // accordingly.
 //***** */
+
+// Credentials are coming from include in WifiUtil.h
+// Firebase setup using FirebaseClient class wrapper
+FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
+                            FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
+// Base path for all data in Firebase
+const String BASE_PATH = "/tanks/yashatankid";
 
 // Pin definitions
 constexpr uint8_t HEAT_LAMP_PIN = 0; // Pin for heat lamp relay
@@ -51,13 +54,13 @@ CameraDevice camera("camera");
 // data is processed by camera-board
 void onDataSentToCameraBoard(const uint8_t *mac_addr,
                              esp_now_send_status_t status) {
-  Serial.print("\r\nLast Packet Send Status:\t");
+  // Serial.print("\r\nLast Packet Send Status:\t");
   bool success = (status == ESP_NOW_SEND_SUCCESS);
-  Serial.println(success ? "Delivery Success" : "Delivery Fail");
+  // Serial.println(success ? "Delivery Success" : "Delivery Fail");
 
   if (success) {
     camera.setErrorState(false);
-    Serial.println("Setting camera state");
+    // Serial.println("Setting camera state");
     // We can now trust the command was received, so use desired state
     if (camera.shouldBeOn()) {
       camera.setState(true);
@@ -65,7 +68,7 @@ void onDataSentToCameraBoard(const uint8_t *mac_addr,
       camera.setState(false);
     }
   } else {
-    Serial.println("Failed to send camera command");
+    // Serial.println("Failed to send camera command");
     // TODO Have error code for firebase
   }
 }
@@ -77,7 +80,7 @@ void setup() {
   // Enable for detailed debug output (for when the gremlins strike)
   // Serial.setDebugOutput(true);
   // esp_log_level_set("*", ESP_LOG_VERBOSE);
-  Serial.println("Sensors and devices initializing...");
+  // Serial.println("Sensors and devices initializing...");
   // TODO Check emmissivity setting and tune it with input here
   mlxSensor.begin();
   aht20Sensor.begin();
@@ -90,9 +93,9 @@ void setup() {
       onDataSentToCameraBoard); // This file is uploaded to the main board
 
   // Start firebase app with a stream path to listen for commands
-  firebaseApp.begin("/devices");
+  firebaseApp.begin((BASE_PATH + String("/devices")).c_str());
   delay(1000); // Allow time for devices to initialize
-  Serial.println("Initialization complete.!");
+  // Serial.println("Initialization complete.!");
 }
 
 unsigned long lastDeviceLoopUpdate = 0;
@@ -122,7 +125,8 @@ void loop() {
     if (wifi.getLocalTimeWithDST(timeInfo)) {
       strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
     }
-    firebaseApp.setValue("/status/time", timeBuffer);
+    firebaseApp.setValue((BASE_PATH + String("/status/time")).c_str(),
+                         timeBuffer);
   }
 
   // Publish states every 3 seconds - Seems stable compared to this in 1s loop
@@ -136,13 +140,6 @@ void loop() {
     // Compute a fresh timestamp string for lastUpdateTime
     struct tm sensorTimeInfo;
     char sensorTimeBuffer[20] = {0};
-    if (wifi.getLocalTimeWithDST(sensorTimeInfo)) {
-      strftime(sensorTimeBuffer, sizeof(sensorTimeBuffer), "%Y-%m-%d %H:%M:%S", &sensorTimeInfo);
-      firebaseApp.setValue("sensors/lastUpdateTime", sensorTimeBuffer);
-    } else {
-      firebaseApp.setValue("sensors/lastUpdateTime", "");
-    }
-
     auto aht20Reading = aht20Sensor.readData();
     auto mlxReading = mlxSensor.readData();
 
@@ -151,14 +148,23 @@ void loop() {
       // update heat lamp state
       heatLamp.update(temperatureF);
 
-      firebaseApp.setValue("sensors/AHT20/reported/temperature", temperatureF);
-      firebaseApp.setValue("sensors/AHT20/reported/humidity", humidity);
+      firebaseApp.setValue(
+          (BASE_PATH + String("/sensors/AHT20/reported/temperature")).c_str(),
+          temperatureF);
+      firebaseApp.setValue(
+          (BASE_PATH + String("/sensors/AHT20/reported/humidity")).c_str(),
+          humidity);
     }
     if (mlxReading) {
       auto [objectTemp, ambientTemp] = *mlxReading;
-      firebaseApp.setValue("sensors/MLX90614/reported/ambientTempF",
-                           ambientTemp);
-      firebaseApp.setValue("sensors/MLX90614/reported/objectTempF", objectTemp);
+      firebaseApp.setValue(
+          (BASE_PATH + String("/sensors/MLX90614/reported/ambientTempF"))
+              .c_str(),
+          ambientTemp);
+      firebaseApp.setValue(
+          (BASE_PATH + String("/sensors/MLX90614/reported/objectTempF"))
+              .c_str(),
+          objectTemp);
     }
 
     // Log sensor data every minute

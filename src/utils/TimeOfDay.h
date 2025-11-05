@@ -21,7 +21,7 @@ public:
   static TimeOfDay now() {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
-      Serial.println("Failed to obtain time");
+      // Serial.println("Failed to obtain time");
       return TimeOfDay(0, 0);
     }
     return TimeOfDay(timeinfo.tm_hour, timeinfo.tm_min);
@@ -52,7 +52,7 @@ public:
     char timeBuffer[20];
 
     if (!getLocalTime(&timeinfo)) {
-      Serial.println("Failed to obtain time");
+      // Serial.println("Failed to obtain time");
       return String("1970-01-01T00:00:00Z");
     }
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);

@@ -8,25 +8,25 @@ public:
 
   void begin() {
     if (!mlx.begin()) {
-      Serial.println("Error connecting to MLX sensor. Check wiring.");
+      // Serial.println("Error connecting to MLX sensor. Check wiring.");
     } else {
       this->initializeSuccessful();
       mlx.writeEmissivity(this->emissivity);
-      Serial.print("MLX Initialized and its Emissivity = ");
-      Serial.println(mlx.readEmissivity());
+      // Serial.print("MLX Initialized and its Emissivity = ");
+      // Serial.println(mlx.readEmissivity());
     }
   }
 
   // Returns object temp then ambient temp
   std::optional<std::tuple<float, float>> readData() override {
     if (!isInitialized()) {
-      Serial.println("MLX Sensor not initialized");
+      // Serial.println("MLX Sensor not initialized");
       return std::nullopt;
     }
     float temp = mlx.readObjectTempF();
     float amb = mlx.readAmbientTempF();
     if (isnan(temp) || isnan(amb)) {
-      Serial.println("Failed to read MLX sensor");
+      // Serial.println("Failed to read MLX sensor");
       return std::nullopt; // Sensor read failed
     }
     return std::make_tuple(temp, amb);

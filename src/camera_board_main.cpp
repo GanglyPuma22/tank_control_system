@@ -26,14 +26,14 @@ camera_message mainBoardData;
 void cameraBoardOnDataRecv(const uint8_t *mac, const uint8_t *incomingData,
                            int len) {
   memcpy(&mainBoardData, incomingData, sizeof(mainBoardData));
-  Serial.print("Bytes received: ");
-  Serial.println(len);
-  Serial.print("Message: ");
-  Serial.println(mainBoardData.message);
-  Serial.print("Camera Action: ");
-  Serial.println(mainBoardData.camera_action);
-  Serial.print("FPS: ");
-  Serial.println(mainBoardData.fps);
+  // Serial.print("Bytes received: ");
+  // Serial.println(len);
+  // Serial.print("Message: ");
+  // Serial.println(mainBoardData.message);
+  // Serial.print("Camera Action: ");
+  // Serial.println(mainBoardData.camera_action);
+  // Serial.print("FPS: ");
+  // Serial.println(mainBoardData.fps);
 
   if (mainBoardData.camera_action == 1) {
     // Turn on camera
@@ -53,7 +53,7 @@ void captureAndTransmitFrame() {
   // capture a frame
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
-    Serial.println("Frame buffer could not be acquired");
+    // Serial.println("Frame buffer could not be acquired");
   }
 
   size_t remaining = fb->len;
@@ -104,14 +104,14 @@ void setup() {
   config.fb_count = 2;
 
   if (esp_camera_init(&config) != ESP_OK) {
-    Serial.println("Camera init failed");
+    // Serial.println("Camera init failed");
     return;
   }
-  Serial.printf("PSRAM size: %d bytes\n", ESP.getPsramSize());
+  // Serial.printf("PSRAM size: %d bytes\n", ESP.getPsramSize());
 
-  Serial.println("Camera initialized successfully");
+  // Serial.println("Camera initialized successfully");
   delay(1000); // Allow time for devices to initialize
-  Serial.println("Initialization complete.!");
+  // Serial.println("Initialization complete.!");
 }
 
 int fpsCounter = 0;
@@ -136,8 +136,8 @@ void loop() {
   // Update FPS counter
   fpsCounter++;
   if (currentTime - fpsTimer >= 1000) {
-    Serial.print("FPS: ");
-    Serial.println(fpsCounter);
+    // Serial.print("FPS: ");
+    // Serial.println(fpsCounter);
     fpsCounter = 0;
     fpsTimer = currentTime;
   }

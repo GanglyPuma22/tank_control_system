@@ -4,7 +4,6 @@
 #include <ArduinoJson.h>
 #include <map>
 
-
 class Device {
 public:
   Device(const std::string &name = "unregistered") : name(name) {
@@ -18,7 +17,7 @@ public:
   }
 
   static Device *getDevice(const std::string &name) {
-    Serial.printf("Looking up device by name: %s\n", name.c_str());
+    // Serial.printf("Looking up device by name: %s\n", name.c_str());
     auto it = registry().find(name);
     return (it != registry().end()) ? it->second : nullptr;
   }

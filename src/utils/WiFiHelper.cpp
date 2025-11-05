@@ -9,16 +9,16 @@ WiFiHelper::WiFiHelper() {}
 
 void WiFiHelper::defaultOnDataSent(const uint8_t *mac_addr,
                                    esp_now_send_status_t status) {
-  Serial.print("\r\nLast Packet Send Status: ");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success"
-                                                : "Delivery Fail");
+  // Serial.print("\r\nLast Packet Send Status: ");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success"
+  //                                             : "Delivery Fail");
 }
 
 void WiFiHelper::defaultOnDataRecv(const uint8_t *mac_addr, const uint8_t *data,
                                    int data_len) {
   memcpy(&receivedData, data, sizeof(receivedData));
-  Serial.print("Bytes received: ");
-  Serial.println(data_len);
+  // Serial.print("Bytes received: ");
+  // Serial.println(data_len);
 }
 
 void WiFiHelper::setupOTA() {
@@ -42,13 +42,13 @@ void WiFiHelper::setupOTA() {
       });
 
   ArduinoOTA.begin();
-  Serial.println("OTA ready. IP address: " + WiFi.localIP().toString());
+  // Serial.println("OTA ready. IP address: " + WiFi.localIP().toString());
 }
 
 void WiFiHelper::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
                              SendCallback sendCb) {
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
+    // Serial.println("Error initializing ESP-NOW");
     return;
   }
 
@@ -62,20 +62,21 @@ void WiFiHelper::setupEspNow(bool isCameraBoard, RecvCallback recvCb,
 
   // Set the WiFi channel to match on both boards for reliable ESP-NOW
   // communication. You can use WiFi.channel() after connecting to WiFi, or
-  // hardcode a channel (1-13). Example: peerInfo.channel = WiFi.channel(); //
+  // hardcode a channel (1-13). Example: peerInfo.channel = WiFi.channel();
+  // //
   peerInfo.channel = WiFi.channel();
   peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-    Serial.println("Failed to add peer");
+    // Serial.println("Failed to add peer");
     return;
   }
-  Serial.println("ESP-NOW initialized");
+  // Serial.println("ESP-NOW initialized");
 }
 
 void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
                                     bool shouldSetupTimeSync) {
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
+  // Serial.print("Connecting to ");
+  // Serial.println(WIFI_SSID);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -83,10 +84,11 @@ void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
   uint8_t attempt = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(WIFI_RETRY_DELAY_MS);
-    Serial.print(".");
+    // Serial.print(".");
     if (++attempt > MAX_WIFI_RETRIES) {
-      Serial.println("\nWiFi connection failed!");
-      // // Only log if FirebaseWrapper is available (it won't be during initial
+      // Serial.println("\nWiFi connection failed!");
+      // // Only log if FirebaseWrapper is available (it won't be during
+      // initial
       // // setup)
       // if (firebaseWrapper) {
       //   firebaseWrapper->logStatusEvent(
@@ -96,42 +98,44 @@ void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
     }
   }
   delay(1000); // Wait a moment for connection to stabilize
-  Serial.println("\nWiFi connected!");
+  // Serial.println("\nWiFi connected!");
   // // Only log if FirebaseWrapper is available
   // if (firebaseWrapper) {
-  //   firebaseWrapper->logStatusEvent("WiFi connected successfully", "info");
+  //   firebaseWrapper->logStatusEvent("WiFi connected successfully",
+  //   "info");
   // }
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("MAC Address: ");
-  Serial.println(WiFi.macAddress());
+  // Serial.print("IP Address: ");
+  // Serial.println(WiFi.localIP());
+  // Serial.print("MAC Address: ");
+  // Serial.println(WiFi.macAddress());
 
   if (shouldSetupOTA) {
     setupOTA();
   }
 
   if (shouldSetupTimeSync) {
-    Serial.println("Synchronizing time with NTP server...");
+    // Serial.println("Synchronizing time with NTP server...");
     configTzTime(tzInfo, ntpServer);
 
     struct tm timeinfo;
     while (!getLocalTime(&timeinfo)) {
-      Serial.println("Waiting for NTP time sync...");
+      // Serial.println("Waiting for NTP time sync...");
       delay(500);
     }
 
-    Serial.print("Time synced: ");
-    Serial.println(asctime(&timeinfo));
+    // Serial.print("Time synced: ");
+    // Serial.println(asctime(&timeinfo));
   }
 }
 
 void WiFiHelper::maintain() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi lost, reconnecting...");
+    // Serial.println("WiFi lost, reconnecting...");
     // // This will work since maintain() is called after FirebaseApp is
     // // initialized
     // if (firebaseWrapper) {
-    //   firebaseWrapper->logStatusEvent("WiFi connection lost, reconnecting",
+    //   firebaseWrapper->logStatusEvent("WiFi connection lost,
+    //   reconnecting",
     //                                   "warning");
     // }
     WiFi.disconnect();
@@ -142,7 +146,7 @@ void WiFiHelper::maintain() {
 
 bool WiFiHelper::getLocalTimeWithDST(struct tm &timeinfo) {
   if (!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time");
+    // Serial.println("Failed to obtain time");
     return false;
   }
   return true;

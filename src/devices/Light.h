@@ -60,8 +60,8 @@ public:
 
       setOnOffTimes(TimeOfDay::fromString(onTimeStr),
                     TimeOfDay::fromString(offTimeStr));
-      Serial.printf("Light on/off times set to: on: %s off: %s\n", onTimeStr,
-                    offTimeStr);
+      // Serial.printf("Light on/off times set to: on: %s off: %s\n", onTimeStr,
+      //              offTimeStr);
     }
   }
 

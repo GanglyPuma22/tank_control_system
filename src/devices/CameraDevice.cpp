@@ -70,7 +70,7 @@ void CameraDevice::applyState(JsonVariantConst desired) {
       setCameraMessage("Camera FPS", 2, this->fps);
       attemptSend(this->cameraMessage);
     } else {
-      Serial.println("Invalid FPS value received, must be between 1 and 30");
+      // Serial.println("Invalid FPS value received, must be between 1 and 30");
     }
   }
   if (desired["state"].is<JsonVariantConst>()) {

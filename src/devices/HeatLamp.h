@@ -66,9 +66,9 @@ public:
       float onTempF = desired["onAbove"].as<float>();
       float offTempF = desired["offAbove"].as<float>();
       setHeatLampTemps(onTempF, offTempF);
-      Serial.printf(
-          "Heat lamp target temps set to: onTemp: %.1f°F offTemp: %.1f°F\n",
-          onTempF, offTempF);
+      // Serial.printf(
+      //   "Heat lamp target temps set to: onTemp: %.1f°F offTemp: %.1f°F\n",
+      // onTempF, offTempF);
     }
   }
 
