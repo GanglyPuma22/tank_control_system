@@ -24,6 +24,7 @@ public:
   void turnOff() override;
   void reportState(JsonDocument &doc) override;
   void applyState(JsonVariantConst desired) override;
+  void logState(FirebaseMapValue &map) override;
   bool shouldBeOn() { return shouldBeOnState; }
   void setErrorState(bool state) { errorState = state; }
   bool hasError() { return errorState; }

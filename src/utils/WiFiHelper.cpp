@@ -1,7 +1,9 @@
 #include "WiFiHelper.h"
+// #include "firebase/FirebaseWrapper.h" // Include to resolve incomplete type
 
 // Initialize static members
 camera_message WiFiHelper::receivedData;
+// FirebaseWrapper *WiFiHelper::firebaseWrapper = nullptr;
 
 WiFiHelper::WiFiHelper() {}
 
@@ -84,11 +86,21 @@ void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
     Serial.print(".");
     if (++attempt > MAX_WIFI_RETRIES) {
       Serial.println("\nWiFi connection failed!");
+      // // Only log if FirebaseWrapper is available (it won't be during initial
+      // // setup)
+      // if (firebaseWrapper) {
+      //   firebaseWrapper->logStatusEvent(
+      //       "WiFi connection failed after max retries", "error");
+      // }
       return;
     }
   }
   delay(1000); // Wait a moment for connection to stabilize
   Serial.println("\nWiFi connected!");
+  // // Only log if FirebaseWrapper is available
+  // if (firebaseWrapper) {
+  //   firebaseWrapper->logStatusEvent("WiFi connected successfully", "info");
+  // }
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
   Serial.print("MAC Address: ");
@@ -116,6 +128,12 @@ void WiFiHelper::connectAndSyncTime(bool shouldSetupOTA,
 void WiFiHelper::maintain() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi lost, reconnecting...");
+    // // This will work since maintain() is called after FirebaseApp is
+    // // initialized
+    // if (firebaseWrapper) {
+    //   firebaseWrapper->logStatusEvent("WiFi connection lost, reconnecting",
+    //                                   "warning");
+    // }
     WiFi.disconnect();
     WiFi.reconnect();
   }
