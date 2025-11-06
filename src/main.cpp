@@ -21,7 +21,7 @@
 FirebaseWrapper firebaseApp(FIREBASE_WEB_API_KEY, FIREBASE_USER_EMAIL,
                             FIREBASE_USER_PASSWORD, FIREBASE_DATABASE_URL);
 // Base path for all data in Firebase
-const String BASE_PATH = "/tanks/yashatankid";
+String BASE_PATH = FirebaseWrapper::getBaseDatabasePath();
 
 // Pin definitions
 constexpr uint8_t HEAT_LAMP_PIN = 0; // Pin for heat lamp relay

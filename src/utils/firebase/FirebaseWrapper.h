@@ -42,6 +42,7 @@ public:
                       std::optional<std::tuple<float, float>> sensorData,
                       const char *label1 = "value1",
                       const char *label2 = "value2");
+  static String getBaseDatabasePath();
 
 private:
   static void onLogResultStatic(AsyncResult &r); // static callback

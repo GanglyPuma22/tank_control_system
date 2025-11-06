@@ -39,6 +39,10 @@ void FirebaseWrapper::begin(const char *dataStreamPath) {
     subscribeValue(dataStreamPath);
   }
 }
+String FirebaseWrapper::getBaseDatabasePath() {
+  return "users/" + String(FIREBASE_USER_ID) + "/tanks/" +
+         String(FIREBASE_TANK_NAME);
+};
 
 String FirebaseWrapper::getBaseLogPath() {
   return "user_logs/" + String(FIREBASE_USER_NAME) + "/tanks/" +
@@ -233,8 +237,8 @@ void FirebaseWrapper::publishReportedStates() {
     JsonDocument doc;
     dev->reportState(doc);
 
-    String path =
-        "/tanks/yashatankid/devices/" + String(name.c_str()) + "/reported";
+    String path = FirebaseWrapper::getBaseDatabasePath() + "/devices/" +
+                  String(name.c_str()) + "/reported";
     String jsonStr;
     serializeJson(doc, jsonStr);
     object_t json(jsonStr.c_str()); // convert ArduinoJson → Firebase object_t
@@ -251,8 +255,8 @@ void FirebaseWrapper::fetchAndApplyDesiredStates() {
   const auto &allDevices = Device::getAllDevices();
 
   for (const auto &[name, device] : allDevices) {
-    String path =
-        "/tanks/yashatankid/devices/" + String(name.c_str()) + "/desired";
+    String path = FirebaseWrapper::getBaseDatabasePath() + "/devices/" +
+                  String(name.c_str()) + "/desired";
     // Serial.printf("Fetching desired state for device %s from path %s\n",
     // name.c_str(), path.c_str());
 
